@@ -1,0 +1,733 @@
+---
+output:
+  pdf_document: default
+  fig_caption: yes
+geometry: margin=1in
+fontsize: 11pt
+header-includes :
+  \usepackage{geometry}
+  \usepackage{graphicx}
+  \tolerance=1
+  \emergencystretch=\maxdimen
+  \hyphenpenalty=10000
+  \hbadness=10000
+  \linespread{1.3}
+  \usepackage[justification=centering, font=bf, labelsep=period, skip=5pt]{caption} 
+  \usepackage{titling}
+  \usepackage[spanish,es-nodecimaldot]{babel}
+  \usepackage{fancyhdr}
+  \pagestyle{fancy}
+  \fancyhead[L]{Econometria Aplicada I}
+  \fancyhead[R]{ITAM}
+ \usepackage{float}
+ \floatplacement{figure}{H}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+\begin{titlepage}
+\begin{center}
+
+\textsc{\Large Instituto Tecnológico Autónomo de México}\\[2em]
+
+\textbf{\LARGE Econometría Aplicada I}\\[2em]
+
+\textsc{\large Tarea 2}\\[1em]
+
+\textsc{\LARGE }\\[1em]
+
+
+\textsc{\LARGE }\\[1em]
+
+\textsc{\large }\\[1em]
+\textsc{\LARGE }\\[1em]
+
+\textsc{\LARGE Profesor: Arturo A. Aguilar Esteva}\\[1em]
+
+\textsc{\LARGE }\\[1em]
+
+\textsc{\LARGE Alumno: Marco Antonio Ramos Juárez}\\[1em]
+
+\textsc{\large 142244}\\[1em]
+
+\end{center}
+
+\vspace*{\fill}
+\textsc{Ciudad de México \hspace*{\fill} 2020}
+
+\end{titlepage}
+
+
+\newpage
+\tableofcontents
+\newpage
+
+```{r, message=FALSE, echo=FALSE, warning=FALSE, include=FALSE}
+#primero importo los paquetes que se usaran.
+install_github("kassambara/easyGgplot2")
+library(tidyverse)
+library(devtools)
+library(knitr)
+library(stargazer)
+library(readr)
+library(easyGgplot2)
+library(quantreg)
+library(modelr)
+library(sandwich)
+library(survival)
+library(car)
+library(biostat3)
+
+
+
+knitr::opts_chunk$set(echo = FALSE)
+#desactivo la notación científica
+options(scipen=999)
+```
+
+```{r, message=FALSE, echo=FALSE, warning=FALSE, include=FALSE}
+### I
+# El primer paso es importar mis datos
+# Para que este ejercicio sea replicable en cualquier lugar, los bajaré de un repositorio online que creé para las tareas de econometría aplicada.
+# No hay necesidad de cambiar el directorio
+# Defino a las bases como m y p respectivamente
+main_data<-read_csv("T2_covid.csv")
+
+```
+
+
+# I.
+
+El primer paso es conocer los datos. Por ello, en primer lugar, presentamos una tabla de resumen general. En segundo lugar, para contestar el inciso, con base en la información del primer cuadro, generamos una tabla con la media, desviación estandar, valor mínimo y máximo de las variables númericas (sin la variable *gdp_pc_er*).
+
+```{r, message=FALSE}
+#Construyo manualmente un data frame informativo con valores de la clase y la cantidad de missing values para cada columna.
+
+  char_col<-colnames(main_data)
+  char_class<-unlist(lapply(main_data,class))
+  char_lenght<-unlist(map(main_data, ~sum(is.na(.))))
+  char_data<- data.frame(char_col, char_class, char_lenght)
+  rownames(char_data) <- NULL  
+  
+kable(char_data ,col.names = c("Variable","Clase","NAs"), caption = "Características de los datos", format= "markdown", align = 'c')
+```
+
+
+```{r, message=FALSE}
+#Construyo manualmente un data frame informativo con valores de media, dea, min y max para cada columna.
+
+omitted<-c('iso_code','country','continent','gdp_pc_er')
+filter_1<- main_data %>% dplyr::select(-omitted)
+options(digits=2)
+  num_col<-colnames(filter_1)
+  num_means_col<-unlist(lapply(filter_1,mean,na.rm=TRUE))
+  num_std_col<-unlist(lapply(filter_1,sd,na.rm=TRUE))
+  num_max_col<-unlist(lapply(filter_1,max,na.rm=TRUE))
+  num_min_col<-unlist(lapply(filter_1,min,na.rm=TRUE))
+  
+num_data<- data.frame(num_col,num_means_col, num_std_col, num_max_col,num_min_col)
+rownames(num_data) <- NULL  
+  kable(num_data, col.names = c("Variable","Media","DE", "Max","Min"),  caption = "Características de las variables numéricas", format="markdown")
+```
+
+# II.
+
+Antes que nada, creo la variable *test_per_mil* con el siguiente código:
+
+```{r, echo= TRUE}
+main_data<- mutate(main_data, test_per_mil=
+main_data$tests_performed*main_data$confirmed_per_mil/main_data$confirmed)
+```
+
+## (a)
+
+```{r, message=FALSE, fig.cap="Relación entre pruebas y casos confirmados por millón", fig.pos="H", out.width = "80%",fig.align = 'center'}
+ggplot(main_data, aes(test_per_mil,confirmed_per_mil))+ geom_point()+ geom_smooth(method = "lm", se=F)
+
+```
+
+```{r, message=FALSE, results = "asis"}
+a<-lm(confirmed_per_mil ~ test_per_mil,main_data)
+#summary(a)
+```
+
+$$\underline{\text{Ecuación de regresión:}}$$
+$$\hat{confirmed\_per\_mil}=3579.55+  0.0141*test\_per\_mil$$
+$$......................................(880.80)...(0.00419)...................... $$
+
+El coeficiente de la regresión *confirmed_per_mil* ~ *test_per_mil* es igual a .0141. Esto lo podemos interpretar como un aumento de uno en el número de pruebas por cada millón habitantes tiene un impacto positivo de .0141 en los casos confirmados por cada millón.
+
+## (b)
+
+```{r, message=FALSE, fig.cap="Relación entre pruebas (log) y casos confirmados por millón", fig.pos="H", out.width = "80%",fig.align = 'center'}
+ggplot(main_data, aes(log(test_per_mil),confirmed_per_mil))+ geom_point()+ geom_smooth(method = "lm",se=F)
+```
+
+```{r, message=FALSE}
+b<-lm(confirmed_per_mil ~ log(test_per_mil),main_data,)
+#summary(b)
+```
+$$\underline{\text{Ecuación de regresión:}}$$
+$$\hat{confirmed\_per\_mil}=-17582+ 2088*log(test\_per\_mil)$$
+$$........................................(5391)...(486)................................$$
+
+
+En este caso, un aumento de 1 en el log(*test_per_mil*) tiene un impacto positivo de 2088 en *confirmed_per_mil*. Esto lo podemos interpretar como un cambio del 1% en las pruebas por millón tiene un impacto positivo de 20.88 en los casos confirmados por cada millón (o bien).
+
+
+## (c)
+
+```{r, message=FALSE, fig.cap="Relación entre pruebas (log) y casos confirmados (log) por millón", fig.pos="H", out.width = "80%",fig.align = 'center'}
+ggplot(main_data, aes(log(test_per_mil),log(confirmed_per_mil)))+ geom_point()+ geom_smooth(method = "lm", se=F)
+```
+
+```{r, message=FALSE}
+c<-lm(log(confirmed_per_mil) ~ log(test_per_mil),main_data,)
+#summary(c)
+```
+
+
+$$\underline{\text{Ecuación de regresión:}}$$
+$$\hat{log(confirmed\_per\_mil)}=-0.363+ .734*log(test\_per\_mil)$$
+$$.............................................(1.04)...(0.0943 )...........................$$
+
+En este caso, un aumento de 1 en el log(*test_per_mil*) tiene un impacto positivo de .734 en el log(*confirmed_per_mil*). Esto lo podemos interpretar como un cambio del 1% en las pruebas por millón tiene un impacto positivo del .734 % en los casos confirmados por cada millón.
+
+## (d)
+
+```{r, message=FALSE, fig.cap="Regresiones cuantílicas"}
+#Con la función rq calculamos una regresión para el primer, segundo y tercer cuartil.
+c<-lm(log(confirmed_per_mil) ~ log(test_per_mil),main_data,)
+q1_model <- rq(log(confirmed_per_mil) ~ log(test_per_mil), data = main_data, tau = .25)
+q2_model <- rq(log(confirmed_per_mil) ~ log(test_per_mil), data = main_data, tau = .5)
+q3_model <- rq(log(confirmed_per_mil) ~ log(test_per_mil), data = main_data, tau = .75)
+
+#Ahora predecimos los valores de cada regresión para poder graficar las rectas.
+main_data %>%
+  mutate( q1_model = predict(q1_model)) %>%
+  mutate( q2_model = predict(q2_model))%>%
+  mutate( q3_model = predict(q3_model))%>%
+ 
+  ggplot(aes(log(test_per_mil),log(confirmed_per_mil),colour="Media"))+ geom_point()+ geom_smooth(method = "lm", se=F)+
+  geom_line(aes(log(test_per_mil), q1_model,colour="Primer cuartil (q1)"))+
+  geom_line(aes(log(test_per_mil), q2_model,colour="Mediana (q2)"))+
+  geom_line(aes(log(test_per_mil), q3_model,colour="Tercer cuartil (q3)"))+ 
+  scale_colour_manual(name="Regresión",values=c("black","green","orange","purple"))
+
+# Finalmente obteno los resultados de cada regresión
+#summary.rq(q1_model,se="nid")
+#summary.rq(q2_model,se="nid")
+#summary.rq(q3_model,se="nid")
+```
+
+$$\underline{\text{Ecuaciones de regresión:}}$$
+$$\hat{log(confirmed\_per\_mil)}_{q1}=-2.68 + 0.87*log(test\_per\_mil)$$
+$$.............................................(2.20)...(0.183)...........................$$
+$$\hat{log(confirmed\_per\_mil)}_{q2}=0.58 + 0.66*log(test\_per\_mil)$$
+$$.............................................(1.071)...(0.097)...........................$$
+$$\hat{log(confirmed\_per\_mil)}_{q3}=0.056 + 0.76*log(test\_per\_mil)$$
+$$.............................................(1.734)...(0.156)...........................$$
+
+De la gráfica anterior se puede concluir que las regresiones lineales te dan la flexibilidad de tener un pivote alrededor de distintos cuantiles lo cual puede ser provechoso para analizar distintas situaciones (por ejemplo de efectos diferenciados condicionales). En este caso notamos que las regresiones del primer y tercer cuartil son casi paralelas entre ellas; que la regresión media y la mediana son muy similares aunque en los puntos iniciales y en los finales se alejan; y finalmente, que la distancia entre todas las rectas disminuye conforme aumenta log(*test_per_mil*). 
+
+Asimismo, lo más interesante es la regresión de la mediana que tiene una pendiente más pequeña que las demás y en un lapso menor intersecta a las demás líneas, lo cuál indica la distribución particual de nuestras variables: condicionadas a valores de ln(x) bajos, la mediana de ln(y)|ln(x) es mayor a la media, lo cual indica que incialmente la distribución de ln(y)|ln(x) está sesgada hacia la izquierda; por el conrario, condicionadas a valores altos de ln(x) ocurre lo opuesto, la media de ln(y)|ln(x) es mayor a la mediana, lo que indica que la distribución de ln(y)|ln(x) está sesgada a la derecha.
+
+# III.
+
+## (a)
+
+```{r, message=FALSE, warning=FALSE, fig.cap="Relación entre pruebas (log) y casos confirmados (log) por millón", fig.pos="H", out.width = "80%",fig.align = 'center'}
+ggplot(main_data, aes(log(gdp_pc),log(confirmed_per_mil)))+ geom_point()+ geom_smooth(method = "lm", se=F)
+```
+
+```{r, message=FALSE, results = "asis"}
+IIa<-lm(log(confirmed_per_mil) ~ log(gdp_pc),main_data)
+#summary(IIa)
+```
+
+$$\underline{\text{Ecuación de regresión:}}$$
+$$\hat{log(confirmed\_per\_mil)}=0.889 + 0.698*log(gdp\_pc)$$
+$$.............................................(1.345)...(0.136)...........................$$
+
+
+El coeficiente de la regresión *ln(confirmed_per_mil)* ~ *ln(gdp_pc)* es igual a .698. Esto lo podemos interpretar como un aumento del 1% en el pib per capita tiene un impacto positivo de .698%  en los casos confirmados por cada millón.
+
+
+## (b)
+
+### (i)
+
+$$\beta_1=\frac{cov(x,y)}{var(x)}=\frac{E(xy)-\mu_x\mu_y}{var(x)}$$
+
+Sin realizar ningún cálculo (solo observando la definición de $\beta_1$), el $\hat \beta_1$ disminuye pues el termino $1000*v$ afecta solamente (o al menos de mayor manera) a la varianza.
+
+### (ii)
+
+```{r, message=FALSE, warning=FALSE, fig.cap="Relación entre pruebas (log) y casos confirmados (log) por millón", fig.pos="H", out.width = "80%",fig.align = 'center'}
+ggplot(main_data, aes(log(gdp_pc_er),log(confirmed_per_mil)))+ geom_point()+ geom_smooth(method = "lm", se=F)
+
+```
+
+```{r, message=FALSE, results = "asis"}
+IIb<-lm(log(confirmed_per_mil) ~ log(gdp_pc_er),main_data)
+#summary(IIb)
+```
+
+$$\underline{\text{Ecuación de regresión:}}$$
+$$\hat{log(confirmed\_per\_mil)}=1.803 + 0.607*log(gdp\_pc\_er)$$
+$$.............................................(1.262)...(0.127)...........................$$
+
+El sesgo se llama error de medición. Esta aumentando el ruido blanco en nuestra regresión por lo que, debido al aumento en la varianza, la relación entre nuestras variables se hace menos clara. En este sentido, se confirma la teoría revisada en clase.
+
+## (c)
+
+Sí existe un sesgo pues las tres variables tienen un efecto en la misma dirección. En este caso se corre el riesgo de que *gdp_pc* este capturando el efecto de *test_per_mil*. En este sentido, el sesgo es positivo, el $\hat \beta_{gdp\_pc}$ muestra un efecto muy optimista. Habría que controlar por ambas variables para corregir el sesgo de variable omitida.
+
+## (d)
+
+### (i)
+
+```{r, message=FALSE, results = "asis"}
+IId<-lm(log(gdp_pc) ~ log(test_per_mil),main_data)
+#summary(IId)
+```
+
+$$\underline{\text{Ecuación de regresión:}}$$
+$$\hat{log(gdp\_pc)}= 2.788  + 0.641*log(test\_per\_mil)$$
+$$.................................(0.5154)..(0.0463)........................................$$
+
+### (ii)
+
+```{r, message=FALSE, warning=FALSE, fig.cap="Partial out del pib per capita (log) y tests por millón de habitantes (log)", fig.pos="H", out.width = "80%",fig.align = 'center'}
+#Genero los residuales, calculo la regresión y genero la gráfica.
+#resid(IId)
+main_data<-main_data %>% add_residuals(IId)
+IId2<-lm(log(confirmed_per_mil) ~ resid,main_data)
+ggplot(main_data, aes(resid,log(confirmed_per_mil)))+ geom_point()+ geom_smooth(method = "lm", se=F)
+#summary(IId2)
+
+```
+
+$$\underline{\text{Ecuación de regresión auxiliar:}}$$
+$$\hat{log(confirmed\_per\_mil)}= 7.781  - 0.165*residuales$$
+$$.................................................(0.165).(0.281).........................$$
+
+## (e)
+
+```{r, message=FALSE, results = "asis"}
+IIe<-lm(log(confirmed_per_mil) ~ log(gdp_pc)+ log(test_per_mil),main_data)
+#summary(IIe)
+```
+
+$$\underline{\text{Ecuación de regresión:}}$$
+$$\hat{log(confirmed\_per\_mil)}= 0.615  - 0.165*log(gdp\_pc)+ .797*log(test\_per\_mil)$$
+$$...........................(1.202)...(0.219).......................(0.168)............$$
+
+El efecto de *test_per_mil* es tan fuerte que incluso volteo el signo de $\hat \beta_{gdp\_pc}$. Esto quiere decir que sí había sesgo de variable omitida en la pregunta anterior. Asimismo, esta regresion también nos indica que aunque la cantidad de tests esta correlacionado con el pib per capita, si controlamos por la cantidad de tests (ceteris paribus), notamos que hay un efecto negativo de la riqueza en la cantidad de confirmados: es decir, para un mismo nivel en tests por millón, los países más pobres presentan más casos confirmados.
+
+
+# IV.
+
+En primer lugar, creo las variables que se van a necesitar con el siguiete código:
+
+```{r, echo= TRUE}
+main_data<-main_data %>% mutate(cfr=deaths/confirmed, 
+eur = ifelse (continent == "EU",1,0), asia = ifelse (continent == "AS",1,0), 
+nam = ifelse (continent == "NAM",1,0), 
+std_hdi = (hdi - mean(hdi, na.rm = T))/sd(hdi,na.rm = T),
+hm_cfr = ifelse (cfr > .019, 1, 0),
+std_hdi_2= std_hdi^2)
+```
+
+Posteriormente, elaboro una tabla con las regresiones solicitadas (con o sin errores robustos):
+
+```{r, message=FALSE, results = "asis"}
+#sd(main_data$deaths_per_mil)
+
+IVa<-lm(log(deaths) ~ overwgh_prev + log(cardio_dr) + diab_prev + log(test_per_mil) + log(gdp_pc),main_data) 
+
+IVb<-lm(deaths_per_mil ~ overwgh_prev + log(cardio_dr) + diab_prev + log(test_per_mil) + eur + asia  + median_age,main_data)
+
+IVc<-lm(cfr ~ overwgh_prev + log(cardio_dr) + diab_prev + log(test_per_mil) + std_hdi + std_hdi_2 + median_age
+, main_data)
+
+IVd<-lm(hm_cfr ~ overwgh_prev + log(cardio_dr) + diab_prev + log(hosp_beds_per_thou) + log(test_per_mil) + aged_65_older + log(gdp_pc) + nam
+, main_data)
+
+robust_se_a<-sqrt(diag(vcovHC(IVa,type='HC1')))
+robust_se_b<-sqrt(diag(vcovHC(IVb,type='HC1')))
+robust_se_c<-sqrt(diag(vcovHC(IVc,type='HC1')))
+robust_se_d<-sqrt(diag(vcovHC(IVd,type='HC1')))
+
+stargazer(IVa,IVb,IVc,IVd, title= "Modelos con errores homocedásticos",header=FALSE, type='latex', no.space = T, font.size = "tiny")
+
+stargazer(IVa,IVb,IVc,IVd, title= "Modelos con errores robustos",header=FALSE, type='latex', se=list(robust_se_a,robust_se_b,robust_se_c,robust_se_d), omit.stat = "f", no.space = T, font.size = "tiny")
+```
+
+
+# V.
+
+## (a)
+
+Controlando por *cardio_dr, diab_prev, log(test_per_mil) y log(gdp_pc)*, un aumento en una unidad en la prevalencia de obesidad aumenta el log(deaths) en .045. Esto quiere decir que, *ceteris paribus*, un aumento de uno en la prevalencia de obesidad tiene un impacto positivo de 4.5% en la cantidad de decesos.
+
+## (b)
+
+Controlando por *overwgh_prev, cardio_dr, diab_prev, y log(test_per_mil)* , un aumento de uno en el ln(*gdp_pc*)
+disminuye en .600 el log(*deaths*). Esto lo podemos interpretar como, ceteris paribus, un aumento del 1% en el pib per capita tiene un impacto negativo del .6% en la canitdad de decesos.
+
+## (c)
+
+Un aumento de una unidad en log(*test_per_mil*) tiene un impacto negativo de 6.7 en *deaths_per_mil*. Esto lo interpretamos como, controlando por *overwgh_prev, log(cardio_dr), diab_prev, eur, asia* y *median_age*, un aumento del 1% en los tests por millón disminuye los decesos por millón en .067.
+
+
+## (d)
+
+Un cambio en una unidad de eur tiene un impacto de 8.5 en *deaths_per_mil*. Esto lo interpretamos como,
+controlando por *overwgh_prev,log(cardio_dr), diab_prev, asia, median_age*, los países de europa tienen en promedio 8.5 decesos más por cada milloón habitantes.
+
+## (e)
+
+Un cambio en una unidad de *median_age* tiene un impacto de -5.7 en *deaths_per_mil*. Esto lo interpretamos como,
+controlando por *overwgh_prev,log(cardio_dr), diab_prev, log(test_per_mil), eur* y *asia*, un aumento de un año en la mediana de la edad disminye los decesos por millón en 5.7. Esto parece contraintuitivo pero lo que pasa es que las variables de diabetes, sobrepeso y *cardio_dr* están absorviendo el efecto de las comorbidades que podría tener la mediana de edad; asimismo, como la variable *gdp_pc* está omitida, muy probablemente la edad está capturando el efecto de la riqueza, que como vimos en ejercicios anteriores, el efecto es negativo en los decesos siempre y cuando controlemos por las variables adecuadas.
+
+## (f)
+
+Controlando por las demás variables (*overwgh_prev, log(cardio_dr), log(test_per_mil), std_hdi, std_hdi_2* y *median_age*), un aumento de una unidad en la prevalencia de diabetes, tienen un impacto de -.001 unidades en la tasa de fatalidad.
+
+
+
+## (g)
+
+overwgh_prev, log(cardio_dr), diab_prev, log(test_per_mil), std_hdi, std_hdi_2, median_age
+
+Controlando por las demás variables (*overwgh_prev, log(cardio_dr), diab_prev, std_hdi, std_hdi_2* y *median_age*), un aumento del 1% en los tests por millón de habitantes,  disminuye en .008 la tasa de fatalidad.
+
+
+## (h)
+
+Controlando por las demás variables (*overwgh_prev, log(cardio_dr), log(test_per_mil), diab_prev, std_hdi* y *median_age*), un aumento de una unidad en $std\_hdi^2$ aumenta la tasa de fatalidad en .001. Este efecto es adicional al efecto lineal de *std_hdi*, es decir, es el término del efecto cuadrático. Por cada cambio en una unidad de *std_hdq*, la tasa de fatalidad va a disminuir en 0.0002 unidades pero al mismo tiempo aumentará $2*.001$ unidades.
+
+## (i)
+
+Controlando por las demás variables (*log(cardio_dr), log(hosp_beds_per_thou), log(test_per_mil), aged_65_older, log(gdp_pc)* y *nam*), un aumento de una unidad en la prevalencia de obesidad aumenta la probabilidad de tener una tasa de fatalidad acumulada del país  mayor a 0.019 en 1.2 puntos porcentuales.
+
+## (j)
+
+Controlando por las demás variables (*overwgh_prev,log(cardio_dr), diab_prev, log(test_per_mil), aged_65_older, log(gdp_pc)* y *nam*), un aumento de 1% en la cantidad de camas por cada millón de habitantes aumenta la probabilidad de tener una tasa de fatalidad acumulada del país mayor a 0.019 en .033%.
+
+## (k)
+
+Controlando por las demás variables (*overwgh_prev,log(cardio_dr), log(hosp_beds_per_thou), log(test_per_mil), aged_65_older* y *log(gdp_pc)* ), el pertenecer a los países de América del Norteaumenta la probabilidad de tener una tasa de fatalidad acumulada del país  mayor a 0.019 en 2 puntos porcentuales.
+
+# VI.
+
+## (a)
+```{r, message=FALSE, echo=FALSE, warning=FALSE, include=FALSE}
+
+predict(IVb, subset(main_data, country == 'Mexico'))
+predict(IVb, subset(main_data, country == 'Mexico'),interval = "confidence",vcov.=hccm(IVb, type="hc1"))
+predict(IVb, subset(main_data, country == 'Mexico'),interval = "prediction",vcov.=hccm(IVb, type="hc1"))
+
+```
+
+$$\text{Predicción para México}=331$$
+$$ \text{Intervalo de confianza para México}:186\le 311 \le 436$$
+$$ \text{Predicción puntual para México}:-56\le 311 \le 678$$
+$$\text{Valor real de México}  = 549.29	$$
+Las predicciones y los intervalos se realizaron con el 95% de confianza.
+
+La predicción media subestima la cantidad de muertes, además de que el valor real queda por fuera del intervalo de confianza. Asimismo, aunque el valor real se encuentre dentro del intervalo de la predicción puntual, este se encuentra muy cerca de el límite superior.
+
+## (b)
+
+Recordemos que este tipo de cálculos lo podemos realizar mediante una estimación exacta o una estimación aproximada.
+
+$$\text{Estimación exacta}:$$
+$$\Delta cfr=\Delta (\beta_{std\_hdi}+2*\beta_{std\_hdi\_2}*std\_hdi+\beta_{std\_hdi\_2})$$
+
+
+
+$$\text{Estimación aproximada}:$$
+
+$$\Delta cfr=\Delta (\beta_{std\_hdi}+2*\beta_{std\_hdi\_2}*std\_hdi)$$
+
+Pero recordemos que el promedio de *std_hdi* es cero por definición (debido a que está estandarizada). Por lo que las ecuaciones de $\Delta cfr$ quedan de la siguiente manera:
+
+$$\text{Estimación exacta}:$$
+$$\Delta cfr=\Delta* (\beta_{std\_hdi}+\beta_{std\_hdi\_2})$$
+
+$$\text{Estimación aproximada}:$$
+$$\Delta cfr=\Delta*\beta_{std\_hdi}$$
+
+Ahora simplemente calculamos un intevalo de confianza (al 95%) para cada estimación.
+
+```{r, message=FALSE, echo=FALSE, warning=FALSE, include=FALSE}
+
+prom_data<-summarise_all(main_data, funs(if(is.numeric(.)) mean(.,na.rm = T) else "Prom"))
+
+lincom(IVc,".1*std_hdi",white.adjust="hc1")
+```
+
+$$\text{Estimación exacta}:$$
+$$-0.0018\le \Delta cfr \le 0.002$$
+$$\text{Valor estimado }\Delta cfr =.1*(\beta_{std\_hdi}+\beta_{std\_hdi\_2})= 0.000055$$
+$$\text{Estimación aproximada}:$$
+$$-0.0017\le \Delta cfr \le 0.0016$$
+$$\text{Valor estimado }\Delta cfr =.1*\beta_{std\_hdi}= -0.0017$$
+```{r, message=FALSE, echo=FALSE, warning=FALSE, include=FALSE}
+
+prom_data<-summarise_all(main_data, funs(if(is.numeric(.)) mean(.,na.rm = T) else "Prom"))
+
+lincom(IVc,".1*std_hdi+.1*std_hdi_2",white.adjust="hc1")
+```
+
+
+## (c)
+
+
+```{r, message=FALSE, echo=FALSE, warning=FALSE, include=FALSE}
+
+lincom(IVd,"15*log(test_per_mil)+2*diab_prev+1.5*overwgh_prev",white.adjust="hc1")
+linearHypothesis(IVd,"15*log(test_per_mil)+2*diab_prev+1.5*overwgh_prev",white.adjust="hc1")
+
+
+```
+$$-4.2\% \le \Delta P(X>.19) \le 1.3 \% $$
+$$E( \Delta P(X>.19))=-1.5 \% $$
+
+El intervalo de confianza al 95% del posible efecto es de -4.2% hasta 1.3%. Es decir, es ambiguo si el efecto aumentaría o disminuiría la probabilidad de tener una tasa de fatalidad por arriba de la mediana.
+
+Asimismo, en cuanto a la prueba de hipotesis:
+
+$$h_o:1.5*\beta_{overwgh\_prev}+2*\beta_{diab\_prev}+15*\beta_{log(test\_per\_mil)}=0 $$
+$$h_1:1.5*\beta_{overwgh\_prev}+2*\beta_{diab\_prev}+15*\beta_{log(test\_per\_mil)}\neq0 $$
+
+No se rechaza h0 con valor p de .3 y una valor F de 1.1. El efecto es ambiguo, lo cual es sensato debido a que el efecto va en las dos direcciones y además, aunque, segmentáramos los efectos en dos (uno positivo y uno negativo), el signo de cada uno de estos sigue siendo ambiguo por separado.
+
+
+# VII.
+
+# (a)
+
+### (i)
+
+Para este ejercicio, el país promedio se podía calcular de distintas maneras: ya sea omitiendo las filas con *missing values*; imputando los valores faltantes; realizando los logaritmos después o antes de promediar, etc. En esta tarea se optó simplemente por calcular la media de todas las observaciones que cumplen el criterio solicitado, de la siguiente manera:
+
+```{r, message=FALSE, results = FALSE, echo= TRUE}
+
+data_eu_prom<-summarise_all(subset(main_data, continent == 'EU'),
+              funs(if(is.numeric(.)) mean(.,na.rm = T) else "EU"))
+
+data_as_prom<-summarise_all(subset(main_data, continent == 'AS'), 
+                funs(if(is.numeric(.)) mean(.,na.rm = T) else "AS"))
+```
+
+```{r, message=FALSE, echo=FALSE, warning=FALSE, include=FALSE}
+
+
+predict(IVb, data_eu_prom, interval = "confidence",vcov.=hccm(IVb, type="hc1"))
+predict(IVb, data_eu_prom, interval = "prediction",vcov.=hccm(IVb, type="hc1"))
+
+predict(IVb, data_as_prom, interval = "confidence",vcov.=hccm(IVb, type="hc1"))
+predict(IVb, data_as_prom, interval = "prediction",vcov.=hccm(IVb, type="hc1"))
+(log(203297)-log(130281))
+
+linearHypothesis(IVb,"21*overwgh_prev +.022*log(cardio_dr) -4*diab_prev + .44*log(test_per_mil) + eur -1*asia  + 11*median_age",white.adjust="hc1")
+
+```
+$$\text{Intervalo de confianza para país promedio de EU}:73\le 138 \le 203$$
+$$\text{Intervalo de predicción para país promedio de EU}-213\le 138 \le 489$$
+
+$$\text{Intervalo de confianza para país promedio de AS}:-44\le 40 \le 124$$
+
+$$ \text{Intervalo de predicción para país promedio de AS}: -315\le 40 \le 395$$
+
+$$h_o:\sum(\overline{x_{i,eu}}-\overline{x_{i,as}})*\beta_i =0$$
+
+$$h_1:\sum(\overline{x_{i,eu}}-\overline{x_{i,as}})*\beta_i \neq0$$
+
+
+Con un valor de F de 5.71 y un valor p de .019 rechazamos la hipotesis nula. La diferencia entre ambas predicciones es estadísticamente significante al 98%.
+
+
+### (ii)
+
+Ahora volvemos a realizar la estimación pero solamente con los datos de países europeos y asiaticos. Lo que podemos notar esque los valores de los parámetros han cambiado, algunos de manera drástica como la prevalencia de diabetes que cambio de signo. Cabe destacar que se tuvo que omitir la variable "AS" en el modelo de submuestra pues Asia ahora es representada por nuetro modelo base.
+
+```{r, message=FALSE, results = "asis", fig.pos="H"}
+
+main_data_subset<-subset(main_data, continent == 'EU'|continent ==  'AS')
+
+IVb_subset<-lm(deaths_per_mil ~ overwgh_prev + log(cardio_dr) + diab_prev + log(test_per_mil) + eur + median_age,main_data_subset)
+
+robust_se_b_subset<-sqrt(diag(vcovHC(IVb_subset,type='HC1')))
+
+stargazer(IVb,IVb_subset, title= "Modelo B estimado con diferentes muestras",header=FALSE, column.labels=c("Modelo B", "Modelo B (estimado de submuestra)"), model.numbers=FALSE, type='latex', se=list(robust_se_b,robust_se_b_subset), omit.stat = "f", no.space = T, font.size = "tiny")
+
+```
+
+```{r, message=FALSE, echo=FALSE, warning=FALSE, include=FALSE}
+
+predict(IVb_subset, data_eu_prom, interval = "confidence",vcov.=hccm(IVb, type="hc1"))
+predict(IVb_subset, data_eu_prom, interval = "prediction",vcov.=hccm(IVb, type="hc1"))
+
+predict(IVb_subset, data_as_prom, interval = "confidence",vcov.=hccm(IVb, type="hc1"))
+predict(IVb_subset, data_as_prom, interval = "prediction",vcov.=hccm(IVb, type="hc1"))
+
+linearHypothesis(IVb_subset,"21*overwgh_prev + .022*log(cardio_dr) -4*diab_prev + .44*log(test_per_mil) + eur + 11*median_age",white.adjust="hc1")
+
+```
+$$\text{Intervalo de confianza para país promedio de EU}:87\le 145 \le 203$$
+$$\text{Intervalo de predicción para país promedio de EU}-162\le 145 \le 451$$
+
+$$\text{Intervalo de confianza para país promedio de AS}:-31\le 47 \le 126$$
+
+$$ \text{Intervalo de predicción para país promedio de AS}: -366\le 47 \le 358$$
+
+Como podemos notar, los intervalos se redujeron aunque por muy poco. Para probar si la diferencia sigue siento significativa planteamos una prueba de hipótesis.
+
+$$h_o:\sum(\overline{x_{i,eu}}-\overline{x_{i,as}})*\beta_i =0$$
+
+$$h_1:\sum(\overline{x_{i,eu}}-\overline{x_{i,as}})*\beta_i \neq0$$
+
+Los resultados fueron un valor F de 6.94 y un valor p de 0.011 lo que quiere decir que la diferencia sigue siendo significativa pero ahora con un 99% de confianza.
+
+
+### (iii)
+
+En primer lugar, con el siguiente código, realizó la selección aleatoria y con repetición de países que cumplen la condición de ser europeos o asiaticos.
+
+```{r, echo= TRUE}
+boots_data<-sample_n(main_data_subset, 200, replace = T)
+```
+
+En segundo lugar, en el siguiente código, realizo la estimación del número de muertes de cada modelo y de una vez calculo los residuales. 
+
+```{r, echo= TRUE}
+residuals_IVb<-as.data.frame(unlist(
+  boots_data$deaths_per_mil-predict(IVb, boots_data)))
+
+residuals_IVb_subset<-as.data.frame(
+  unlist(boots_data$deaths_per_mil-predict(IVb_subset, boots_data)))
+```
+
+Finalmente, realizo un histograma para visualizar el desempeño de cada modelo:
+
+```{r, message=FALSE, warning=FALSE, fig.cap="Comparación del desempeño de los modelos B", fig.pos="H", out.width = "80%",fig.align = 'center'}
+
+residuals_IVb$model <- 'complete_data'
+residuals_IVb_subset$model <- 'subset'
+colnames(residuals_IVb)<-c("resid","model")
+colnames(residuals_IVb_subset)<-c("resid","model")
+
+two_models <- as.data.frame(rbind(residuals_IVb, residuals_IVb_subset))
+
+ggplot(two_models, aes(resid, fill = model)) + geom_density(alpha = 0.2)+scale_x_continuous(limits = c(-500,500), expand=c(0,0))
+
+
+```
+
+### (iiii)
+
+Para la tarea específica de predecir los decesos por cada millón de habitantes para un país de Europa o Asia  el modelo hecho con el subset funciona mejor. Como podemos ver en el histógrama, la varianza es menor y el modelo subset está más concentrado en la media 0 de los residuales. Esto debido a que sus parámetros están hechos "a la medida" pues se estimaron con base en sus propios valores. Sin embargo, esto se logro a costa de sacrificar la capacidad del modelo para predecir los decesos de los demás países. De cierta manera, el modelo estimado con el subset está sobreajustado.
+
+## (b)
+
+### (i)
+
+Ahora específicamos solo deaths_per_mil ~ median_age y n-1 variables *dummy* para representar los n contintentes del modelo 2. En esta especificación $\beta_1:\beta_5$ se refieren a las ordenadas al origen diferenciadas de los n-1 continentes, en donde la ordenada al origen del continente base se representa con la $\beta_0$.
+
+$$\underline{\text{Ecuación de regresión:}}$$
+
+$$\hat{log(deaths\_per\_mil)}= +\beta_0+\sum_{i=1}^{5}Continente_i*\beta_i+\beta_6*median\_age$$
+
+
+```{r, message=FALSE, results = "asis"}
+
+IVb_alt<-lm(deaths_per_mil ~ median_age+factor(continent),main_data)
+robust_se_IVb_alt<-sqrt(diag(vcovHC(IVb_alt,type='HC1')))
+
+stargazer(IVb_alt, title= "Decesos por millón de habitantes",header=FALSE, type='latex', se=list(robust_se_IVb_alt), omit.stat = "f", font.size = "tiny")
+```
+
+
+```{r, message=FALSE, warning=FALSE, fig.cap="Modelo 2 con diferentes interceptos por continente", fig.pos="H", out.width = "80%",fig.align = 'center'}
+main_data%>%
+ggplot(aes(median_age,deaths_per_mil,colour=continent))+ geom_point() + geom_abline(intercept = (70+54) , slope = -2,color="yellow4")+ geom_abline(intercept = (70+175) , slope = -2,color="springgreen4")+  geom_abline(intercept = (70+286) , slope = -2,color="turquoise2")+  geom_abline(intercept = (70) , slope =-2,color="red")+ geom_abline(intercept = (70+12) , slope =-2,color="blue")+ geom_abline(intercept = (70+402) , slope =-2,color="violet")
+
+
+```
+
+### (ii)
+
+La nueva especificación ahora con variables de interacción sería de la siguiente manera:
+
+$$\underline{\text{Ecuación de regresión:}}$$
+$$\hat{log(deaths\_per\_mil)}= +\beta_0+\sum_{i=1}^{5}Continente_i*\beta_i+\beta_6*median\_age+\sum_{i=1}^{5}Continente_i*\beta_{i+6}*median\_age$$
+
+De esta manera, estimo el nuevo modelo y lo comparo con el modelo anterior . Los resultados se presentan en el cuadro 7.
+
+```{r, message=FALSE, results = "asis"}
+
+IVb_alt_inter<-lm(deaths_per_mil ~ median_age+factor(continent)+median_age:factor(continent),main_data)
+robust_se_IVb_inter<-sqrt(diag(vcovHC(IVb_alt_inter,type='HC1')))
+
+stargazer(IVb_alt,IVb_alt_inter, title= "Decesos por millón de habitantes",header=FALSE,  column.labels=c("Modelo sin interacciones", "Modelo con interacciones"), model.numbers=FALSE, type='latex', se=list(robust_se_IVb_alt,robust_se_IVb_inter), omit.stat = "f", font.size = "tiny")
+```
+
+```{r, message=FALSE, echo=FALSE, warning=FALSE, include=FALSE}
+
+anova(IVb_alt, IVb_alt_inter)
+
+linearHypothesis(IVb_alt_inter, c("median_age:factor(continent)AS","median_age:factor(continent)EU","median_age:factor(continent)NAM","median_age:factor(continent)OC","median_age:factor(continent)SAM"), c(0,0,0,0,0), test = "F")
+```
+
+Para probar si son o no paralelas las rectas realizamos una prueba de hipótesis sobre los terminos de interacción. Si todos los términos son cero de manera conjunta entonces podemos afirmar que las rectas son paralelas. Por el contrario, si almenos una es estadisticamente distinta a cero entonces no podemos sostener la afirmación.
+
+
+$$h_o:\beta_{7}=0;\beta_{8}=0;\beta_{9}=0;\beta_{10}=0;\beta_{11}=0 $$
+$$h_1: \text{cualquier i e [7-11]}: \beta_i\neq0 $$
+La prueba nos arroja una F de .25 y un valor p de .94 por lo cual, no puedo rechazar la hipotesis nula, no hay evidencia para rechazar que las lineas sean paralelas.
+
+
+### (iii)
+
+Ahora solo especifico el modelo con América del Norte como *dummy* pues me interesa analizar específicamente contra esa variable.
+$$\underline{\text{Ecuación de regresión:}}$$
+$$\hat{log(deaths\_per\_mil)}= \beta_o +\beta_{nam}+\beta_1*median\_age+\beta_{nam}*median\_age$$
+
+Los resultados de la estimación se presentan en el cuadro 8.
+
+```{r, message=FALSE, results = "asis", fig.pos="H"}
+
+IVb_alt_inter_nam<-lm(deaths_per_mil ~ median_age+nam+median_age:nam,main_data)
+robust_se_IVb_inter_nam<-sqrt(diag(vcovHC(IVb_alt_inter,type='HC1')))
+
+stargazer(IVb_alt,IVb_alt_inter,IVb_alt_inter_nam, title= "Decesos por millón de habitantes",header=FALSE,  column.labels=c("Modelo sin interacciones", "Modelo con interacciones","Modelo NAM"), model.numbers=FALSE, type='latex', se=list(robust_se_IVb_alt,robust_se_IVb_inter,robust_se_IVb_inter_nam), omit.stat = "f", font.size = "tiny")
+```
+
+
+```{r, message=FALSE, echo=FALSE, warning=FALSE, include=FALSE}
+linearHypothesis(IVb_alt_inter_nam, c("nam","median_age:nam"), c(0,0), test = "F")
+```
+
+Ahora en el planteamiento de la prueba de hipótesis simplemente comparamos Norte América frente al resto de los países. La hipotesis nula es si los dos terminos de *nam* son iguales a cero; en contra de si al menos alguno es distinto de cero.
+
+$$h_o:\beta_{nam}=0; \beta_{nam*median\_age}=0 $$
+$$h_1: \text{para cualquier i entre las anteirores }  \beta_i\neq0 $$
+
+Sin embargo, en este caso, al menos una es distinta de cero (probablemente la $\beta$ sin interacción). Con un valor F de 3.09 y un valor p de .051, rechazamos h0 con el 95% de confianza, las linea de NAM es diferente a las del resto de los continentes.
+
+
+Finalmente, realizamos una gráfica para observar la curva.
+
+```{r, message=FALSE, warning=FALSE, fig.cap="Modelo con América del Norte frente a los demás continentes", fig.pos="H", out.width = "80%",fig.align = 'center'}
+main_data%>%
+ggplot(aes(median_age,deaths_per_mil,colour=factor(nam)))+ geom_point() + geom_abline(intercept = 12 , slope = 3.3,color="springgreen4")+  geom_abline(intercept = (509+12) , slope = (3.3-10),color="turquoise2")
+```
+
+Como podemos notar, a pesar de que el termino de interacción tiene un valor grande relativamente en la grafica observamos que la relación no es tan clara (esto se traduce en un estadístico t estadñisticamente insignificante para dicha $\beta$). Por el contrario, si podemos notar en la grafica de manera más clara que el intercepto de la linea de America del Norte es diferente al del resto de los continentes.

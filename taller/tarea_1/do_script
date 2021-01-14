@@ -1,0 +1,498 @@
+cd /Users/marcoyel21/Desktop/STATA
+log using MarcoRamos_142244_Tarea1RES.log, replace 
+*Antes de empezar, asigno un directorio para poder trabajar y donde he descargado las bases de datos.
+cd /Users/marcoyel21/Desktop/STATA
+**I. Ejercicio 1*
+*Guardar la base Bonos.xlsx y guardarla como archivo DTA.
+
+import excel Bonos.xlsx , firstrow
+save Bonos
+*(a)
+*Para poder analizar cuales variables son strings pero deberían ser númericas lo más intuitivo es utilizar la función describe para identificar los strings. Como dichas variabels tienen un color en el visor (en STATA 16 es amarillo) , simplemente analizo cuales tienen datos númericos.
+describe
+
+*las siguientes variables son strings pero pueden convertirse a númericas [rate spread amt arbitration secured quorum paymentvote acceleration reverseacc npexcep]*
+
+*(b)
+*En este sentido, uso la función destring para convertirlas a variables más la opción force para coercionar para que los valores no numericos se conviertan en NAs.
+
+destring list rate spread amt arbitration secured quorum paymentvote acceleration reverseacc npexcep , replace force
+
+*(c)
+* Uso la función Keep para mantener la lista de variables [ year spread aaa aa a bb b num_lawyers2 rep_ic_size curr law rep_ic_top2 rep_ic_top2_ny rep_ic_top2_eng lnamt years highrate2 hh_index_ib hh_index_ib_eng hh_index_ib_ny ].
+
+keep year spread aaa aa a bb b num_lawyers2 rep_ic_size curr law rep_ic_top2 rep_ic_top2_ny rep_ic_top2_eng lnamt years highrate2 hh_index_ib hh_index_ib_eng hh_index_ib_ny
+
+*(d) Mantengo las observaciones que son posteriores al año 1947. Para ello uso la función Keep pero ahora con un argumento lógico.
+*Uso el año 1946 para que la condición incluya desde 1947.
+
+keep if year > 1946
+
+*(d)
+*Exploro la base de datos.
+
+describe
+tabstat aaa aa a bb b ,s(sum)
+tab law 
+tab num_lawyers2
+tab highrate2
+tab curr
+* En cuanto a la base de datos, filtrada cuenta con 1,482 observaciones y 20 variables. Asimismo, se identifico de los ejercicios anteriores que existían algunos casos en los que una variable contenía valores string cuando deberían ser númericos. Por ellos se optó por transformar esos valores a NA(.).
+*La información es acerca de bonos que se emitieron desde 1947 hasta el 2012(con un año promedio de emision en 1995) cuya  duración promedio fue de 10.8 años. El spread promedio es de 1.96 sin embargo este va desde -7.23 a 50.93. Los logaritmos del monto de la emisión van desde .47 a 13.8 con una media en 6.25. Los indice de aglomeración general tienen un promedio de .06 y un valor máxicmo de .14
+*En cuanto a la procedencia, la gran mayoría son en dólares estadounidenses (949). Asimismo, en caso de default la gran mayoría (1099) se encuentran protegidos bajo las leyes de Estados Unidos o de Reino Unido (NY + English+ English and Wales). Relacionado con esto tan solo 192 bonos no cuentan con una firma de abogados en el contrato.
+
+* En cuanto a la calidad, 751 bonos son de alta calidad. Asimismo, la mayoría cuentan con un rating bb (316), seguido de aa(232), a(189), aaa(164) y finalmente b (156).
+*Guardo los datos que trabajé en la sección.
+save bonos_ej1
+
+*II
+
+
+*Asimismo, reviso los datos para diseñar un merge óptimo. 
+clear
+import excel Bonos2.xlsx , firstrow
+save Bonos2
+use Bonos2
+
+*En este sentido se descubrió que ambas bases cuentan con el mismo número de filas y que además comparten las variables obs issuer_1 issuer issuedate maturity year years.
+*Ahora uso la funicón merge junto con la opción replace y update para que las variables compartidas no se dupliquen, más la opción force para coeccionar a que en caso de que la misma variable tenga diferente tipo, elija uno.
+
+merge 1:1 _n using Bonos, replace update force
+
+*(a) En cuanto a las variables nuevas, se encontró gracias a la función describe y a la clasficación por colores de STATA, que standarddeviationofexportgrowth y reservesshorttermdebt deberían ser númericas.
+
+*(b)
+*En este sentido podemos corregir tanto las viejas(otra vez debido a que use Bonos.dta) como las nuevas variables.
+destring list rate spread amt arbitration secured quorum paymentvote acceleration reverseacc npexcep , replace force
+
+destring standarddeviationofexportgrowth reservesshorttermdebt , replace force
+
+summarize
+
+*(c)
+*Este segundo grupo de variables se refieren a características del país de emisión más que a cualidades individuales del bono.
+* En la sigueinte tabla podemos ver los valores de las nuevas variables para cada país emisor.
+
+tabstat debtserviceexports gdpgrowth ratioofshorttermdebttototaldebt reservesshorttermdebt ratioofdomesticcredittogdp ratioofreservesimports debtrescheduledinpreviousyear ratioofreservesgdp standarddeviationofexportgrowth2, s(mean count) by(issuer)
+
+*La observación principal es que Argentina, Finlandia, Grecia, Portugal, Sueciaia, Turquía han emitido más de 45 bonos. Asimismo, a primera vista no se pudo encontrar características en común de este grupo de países. Esperemos que con un análisis gráfico las características séan más evidentes.
+save bonos_ej2
+
+*III
+*Parece que existen dos grupos. Los bonos con madurez menor a 10 años presentan una menor varianza en el spread. Por el contrario, la varianza aumenta a partir de mayor años de madurez.
+
+*En cuanto a lo legal, podemos observaro que existe una correlación entre el spread promedio y la cantidad de firmas de abogados.
+graph bar (mean) spread, over(num_lawyers2) ytitle("Spread ") title("Spread promedio por cantidad de firmas de abogados")
+
+* En cambio si analisamos por la ley aplicable en caso de default, podemos observar que el spread promedio en España y en Gales es muy alto (aunque recordemos que son pocos Bonos. Por el contrario, el spread promedio en los casos de NY y English (las leyes que contemplán la mayoría de los bonos) está alrededor del 2.
+
+graph hbar (mean) spread, over(law, sort(1) descending) ytitle("Spread promedio") title( "Spread promedio por ley aplicable en caso de default", span pos(11))
+
+*Finalmente, solo para dimensionar si hay un efecto temporal, puedo analizar el impacto de los años de madurez del bono en el spread.
+*Para eso descargo el paquete xtgraph y defino a la variable years en el eje x y al spread en el eje y.
+ssc install xtgraph
+tis years
+iis spread
+xtgraph spread
+
+*En conclusión, el spread tiene una correlación positiva entre el número de firmas de abogados así como con el tiempo de madurez. Asimismo, la mayoría de los bonos, que están sujetos a la jurisdicción estadounidense y de Inglaterra en promedio cuentan con un spread alrededor del 2, el cual es un nivel medio.
+
+*IV
+
+*(a)
+*Agregamos las variables num_lawyers_2 y num_lawyers_0. Sin embargo hay que tener cuidado con los missing values pues de estos no tenemos certeza del valor real de su variable num_lawyers2. Aunque solo son 3 de acuerdo a la información que muestra el comando tabulate, vale la pena clasificarlos con cuidado.
+tabulate num_lawyers2
+*Por ello, definimos num_lawyers_2 como una variable que obtiene valor 1, 0 o . de acuerdo a si cumple las condiciones necesarias. En este sentido es una condición de 3 niveles, el primero para determinar si tiene valor 1, el segundo para determinar si tiene valor 0 y el tercero para indicar que es un missing value.
+
+gen num_lawyers_2 = cond(num_lawyers2 == 2, 1, cond(num_lawyers2 == 1,0,cond(num_lawyers2 == 0,0,.)))
+*Realizamos un ejercicio similar para la variable num_lawyers_0.
+
+gen num_lawyers_0 = cond(num_lawyers2 == 0, 1,cond(num_lawyers2 == 1,0,cond(num_lawyers2 == 2,0,.)))
+
+*Asimismo, remmplazamos los valores en rep_ic_size que cumplan la condición. Aunque en realidad 0 valores cambiaron.
+replace rep_ic_size=0 if num_lawyers2 == 0
+*Guardamos nuestros cambios
+save ej4
+
+*(b)
+*Corremos las siguientes regresiones
+ssc install estout, replace
+
+*De esta manera, en ambas sabemos que el modelo base es aquel con num_lawyers2=1.
+regress spread aaa aa a bb b num_lawyers_2 num_lawyers_0
+eststo MODEL4A
+regress spread num_lawyers_2 num_lawyers_0
+eststo MODEL4B
+esttab
+
+*(c y d)
+*En esta sección analizaremos los modelos, mostraremos los resultados y haremos conclusiones pero de uno por uno.
+*En primer lugar, aplicamos las pruebas de linealidad para la primera regresión, el MODEL4A.
+regress spread aaa aa a bb b num_lawyers_2 num_lawyers_0
+graph matrix spread aaa aa a bb b num_lawyers_2 num_lawyers_0
+acprplot aaa, lowess
+acprplot aa, lowess
+acprplot aa, lowess
+acprplot bb, lowess
+acprplot b, lowess
+acprplot num_lawyers_2, lowess
+acprplot num_lawyers_0, lowess
+*Parece que las relaciones son lineales.
+*En segundo lugar, realizamos la prueba Breusch-Pagan de heterocedasticidad y observamos los errores en una gráfica
+estat hettest
+rvfplot
+*De acuerdo a la prueba rechazo h0, es decir rechazo que los errores sean homocedasticos con más de un 99% de confianza. Sin embargo de acuerdo a la gráfica, en realidad se debe a que tenemos outliers que está aumentando la varianza del error en una sección específica. Más adelante controlaremos por eso.
+
+*En tercer lugar, realizó las pruebas de variable omitida.
+ovtest
+*De acuerdo al test Ramsey Reset, el p value es muy pequeño por lo que rechazo H0 con más del 99% de confianza, es decir rechazo que no hayamos omitido una variable.
+*En cuarto lugar, realizamos una prueba para detectar error de especificación. Para eso usamos el comando linktest y vemos si el valor de p de _hatsq es estadísticamente significativo. 
+linktest
+*Como el p value es de .767 (relativamente alto) rechazamos h0, es decir rechazamos que no exista un error de especificación.
+
+*En quinto lugar, realizamos una prueba de multicolinealidad.
+vif
+*Como podemos observar, ninguna variable tienen un VIF mayor a 10, no hay problema de multicolinealidad.
+*En sexto lugar, realizamos una prueba gráfica para detectar outliers.
+avplot aaa 
+avplot aa 
+avplot a  
+*Con respecto al rating si podemos notar que existen al menos un outlier con rating ajeno a aaa,aa o a.
+avplot bb
+avplot b
+*Ahora pudimos detectar  que un outlier  tiene un rating bb.
+avplot num_lawyers_2
+avplot num_lawyers_0
+*Finalmente detectamos que los outliers definitivamente no tienen dos ni cero firmas de abogados relacionadas. Por lo que puede tener una firma o pertenecer a el Bono con un missing value en la variable num_lawyers2.
+*Después de buscar por las características encontradas, se descubrió que los outlier tiene un valor mayor o igual 50.9. Esto es muy útil para poder realziar las pruebas otra vez, omitiendo a los outliers.
+*En septimo lugar, realizamos unas pruebas de normalidad. Para ello, hay que declarar una variable de residuos e.
+predict e, resid
+kdensity e, normal
+swilk e
+*A pesar de que la grafica emula una distribución centrada en una media, se aprecia una distribución leptocúrtica, un poco alejada de una normal. Sin embargo, de la prueba Shaprio-Wilk W obtuvimos un valor p de 0, lo cual indica que  rechazamos la hipotesis nula, es decir  rechazamos que los errores se distribuyan de manera norma.
+
+*En conclusión, el model1 aprobó las pruebas de linealidad y resultó no tener multicolinealidad; sin embargo resultó que tiene problemas de variables omitidas y de especificación. Asimismo, se encontró que existe un outlier muy extremo que hace que el modelo entero no sea homocedastico. 
+
+*Sin embargo, si se controla esa variable, no se rechaza  la homocedasticidad, como se muestra a continuación. Asimismo, también no se acepta el error en la especificación pues el _hatsq pasa a ser estadísticamente no significante. Finalmente, la grafica de distribución de los errores se asemejaría muchísimo más a una normal, aunque seguimos rechazano H0 del test Shapiro-Wilk.
+
+drop if spread == 50.93
+drop if spread == 50.9
+estat hettest
+linktest
+drop e 
+predict e, resid
+kdensity e, normal
+swilk e
+*Ahora procedemos a analizar el MODEL4B
+clear
+use ej4
+regress spread num_lawyers_2 num_lawyers_0
+
+*En primer lugar, aplicamos las pruebas de linealidad.
+graph matrix num_lawyers_2 num_lawyers_0
+acprplot num_lawyers_2, lowess
+acprplot num_lawyers_0, lowess
+*Parece que las relaciones son lineales.
+
+*En segundo lugar, realizamos la prueba Breusch-Pagan de heterocedasticidad y observamos los errores en una gráfica
+estat hettest
+rvfplot
+*De acuerdo a la prueba rechazo h0, es decir rechazo que los errores sean homocedasticos con más de un 99% de confianza. Sin embargo de acuerdo a la gráfica, en realidad se debe a que tenemos outliers que están aumentando la varianza del error en una sección específica. Por lo que si se omite, el modelo puede ser homocedastico con certeza.
+
+*En tercer lugar, realizó las pruebas de variable omitida.
+*Sin embargo, el comando ovtest no se puede ejecutar debido a que las variables son variables indicadoras (las potencias de y gorro son colineares con las variables dependientes, lo cuál tiene mucho snetido pues son solo 2 variables dummies.
+
+*En cuarto lugar, realizamos una prueba para detectar error de especificación. Para eso usamos el comando linktest y vemos si el valor de p de hatsq es estadísticamente significativo. 
+linktest
+*Como el p value es de 1 rechazamos h0, es decir rechazamos que no exista un error de especificación.
+
+*En quinto lugar, realizamos una prueba de multicolinealidad.
+vif
+*Como podemos observar, ninguna variable tienen un VIF mayor a 10.
+
+*En sexto lugar, realizamos una prueba gráfica para detectar outliers.
+avplot num_lawyers_2
+avplot num_lawyers_0
+*Detectamos los mismos outliers que en la regresión pasada.  Definitivamente no tienen dos ni cero firmas de abogados relacionadas. Por lo que pueden tener una firma o pertenecer a alguno de los bono con missing value en la variable num_lawyers2.
+*Después de buscar por las características encontradas, se descubrió que los outliers tienen un valor mayor o igual a 50.9 
+*En septimo lugar, realizamos unas pruebas de normalidad. Para ello, hay que declarar una variable de residuos e.
+predict e, resid
+kdensity e, normal
+swilk e
+*De manera similar al model 1, a pesar de que la grafica emula una distribución centrada en una media, se aprecia una distribución leptocúrtica, un poco alejada de una normal. Asimismo, de la prueba Shaprio-Wilk W obtuvimos un valor p de 0, lo cual indica que rechazamos la hipotesis nula, es decir rechazamos que los errores se distribuyan de manera norma.
+
+*En conclusión, esta regresión pasó las pruebas de linealidad sin embargo concluímos que está mal especificado; que no cuenta con homocedasticidad y que los errores no se distribuyen de manera normal. Sin embargo, no presenta multicolinealidad y presenta dos outliers con la capacidad de modificar todos los resultados.
+
+
+*Por ejemplo si omitimos a los dos outliers, seguimos rechazando H0 en la prueba de Bresuch Pagan de homocedasticidad aunque ahora con solo el 96% de confianza; además, el p value de _hatsq del comando linktest tendría un valor de .105 (en lugar de 1) por lo que deja de ser significante y esto indicaría que no hay problema de especifícación. FInalmente, gracias a la omisión de variable, la distribución de errores se asemeja más a una normal.
+drop if spread == 50.93
+drop if spread == 50.9
+estat hettest
+
+*En conclusión, la primera regresión parece más completa porque contempla no solo la cantidad de firmas de abogados sino el rating, esto permite al modelo explicar más la varianza en el spread. De todas maneras,los modelos tienen muchas deficiencias en cuanto a especificación y omisión de variables. Sin embargo ambos podrían mejorar sustancialmente si omitimos los outliers, pues tendrían errores más homocedasticos y dichos errores tendrían una distribución más parecida a una normal.
+
+*V 
+*(a,b y c)
+*En esta sección primero se prepararán los datos (a y b) para posteriormente realizar el análisis similar al del ejercicio anterior para finalmente hacer las conclusiones relevantes (c).
+
+
+*Primero adecuo la base de datos.
+clear
+eststo clear
+use ej4
+tabulate year, generate(y)
+tabulate curr, generate(c)
+save ej5
+*Ahora puedo correr las regresiones adecuadas.
+
+*Primero analizaremos el caso para la submuestra con jurisdicción en NY.
+keep if law == "NY"
+
+*MODELONYA (con los ratings)
+regress spread aaa aa a bb b num_lawyers_2 num_lawyers_0 c2-c44 y2-y62, robust
+eststo MODELNYA
+
+*(Test set)
+*1-linealidad: Se consideró que debido a los hallazgos anteriores y al ser todas las nuevas variables dummies, está prueba es incesesaria, se asume linealidad.
+*2-homocedasticidad: No hay homocedasticidad, la opción robust controla por eso (al menos por ahora).
+rvfplot
+*3-variable omitida: Puedo rechazar H0 (no hay sesgo por variables omitidas) a partir del 97% de confianza.
+ovtest
+*4-error de especificación: _hatsq es significatica con un p value de .342, por lo que no rechazamos H0 (no rechazamos que no tengamos error de especifícación)
+linktest
+*5-multicolinealidad: Definitivamente tenemos un problema de multicolinealidad con las variables que agregamos, 20 de ellas presentan una VIF mayor a 10
+vif 
+*6-outliers: en el caso de outliers, estos están controlados debido a la opción robust.
+avplot aaa 
+avplot aa 
+avplot a  
+avplot bb
+avplot b
+avplot num_lawyers_2
+*7-normalidad: En cuanto a normalidad, la distribución no se asemeja a una normal.
+predict e, resid
+kdensity e, normal
+swilk e
+
+*Conclusión: Gracias a la opción robust, se realizó una regresión ponderadora que  ha corregido para el peso desproporcional de los outliers y esto ha favorecido a que el término estocástico sea homocedastico y se distribuya de forma normal. Asimismo, existe un riesgo de que tengamos un sesgo por variable omitida aunque en menor medida que en el modelo anterio (modelNY1); finalmente, definitivamente el modelo presenta un problema de multicolinealidad, que aunque en menos variables (17), recordemos que en principio este modelo cuenta con 5 regresoras menos.
+
+*MODELONYB (sin los ratings)
+regress spread num_lawyers_2 num_lawyers_0 c2-c44 y2-y62, robust
+eststo MODELNYB
+
+*(Test set)
+*1-linealidad: Se consideró que debido a los hallazgos anteriores y al ser todas las nuevas variables dummies, está prueba es incesesaria, se asume linealidad.
+
+*2-homocedasticidad: No hay homocedasticidad, el robust controla por eso.
+rvfplot
+*3-variable omitida: Puedo rechazar H0 (no hay sesgo por variables omitidas) a partir del 94% de confianza, un poco menos confianza que en modelNY1.
+ovtest
+
+*4-error de especificación: _hatsq es significatica con un p value de .447, por lo que no rechazamos H0 (no rechazamos que no tengamos error de especifícación)
+linktest
+*5-multicolinealidad: Definitivamente tenemos un problema de multicolinealidad con las variables que agregamos, pues 17 de ellas presentan una VIF mayor a 10.
+vif 
+*6-outliers: en el caso de outliers, estos están controlados debido a la opción robust.
+
+avplot y40
+avplot num_lawyers_0
+*7-normalidad: En cuanto a normalidad, la distribución se asemeja a una normal.
+drop e
+predict e, resid
+kdensity e, normal
+swilk e
+
+*Conclusión: Gracias a la opción robust se ha corregido para el peso desproporcional de los outliers y esto ha favorecido a que el término estocástico sea homocedastico y se distribuya de forma normal. Asimismo, existe un riesgo de que tengamos un sesgo por variable omitida; finalmente, definitivamente el modelo presenta un problema de multicolinealidad.
+
+
+*Ahora analizaremos el caso para la jurisdicción inglesa.
+clear
+use ej5 
+keep if law == "English"
+
+*MODELENGA (con los ratings)
+regress spread aaa aa a bb b num_lawyers_2 num_lawyers_0 c2-c44 y2-y62, robust
+eststo MODELENGA 
+
+
+*(Test set)
+*1-linealidad: Se consideró que debido a los hallazgos anteriores y al ser todas las nuevas variables dummies, está prueba es incesesaria, se asume linealidad.
+
+*2-homocedasticidad: En este caso si podemos ver que a pesar de que hay algunas obervaciones outliers que si se omitieran harían que el modelo no tuviera heterocedasticidad.
+rvfplot
+*3-variable omitida: Puedo rechazar H0 (no hay sesgo por variables omitidas) con más del 99% de confianza.
+ovtest
+*4-error de especificación: _hatsq es significatica con un p value de .182, por lo que no rechazamos H0 (no rechazamos que no tengamos error de especifícación)
+linktest
+*5-multicolinealidad: Definitivamente tenemos un problema de multicolinealidad con las variables que agregamos, pues 25 de ellas presentan una VIF mayor a 10.
+vif 
+*6-outliers: en el caso de outliers, detectamos un grupo.
+
+avplot y40
+avplot num_lawyers_0
+
+*7-normalidad: En cuanto a normalidad, la distribución es muy leptocúrtica por lo que no se asemeja a una normal.
+predict e, resid
+kdensity e, normal
+swilk e
+
+*Conclusión: Para el caso de ley inglesa, tenemos algunos outliers que hacen que nuestro modelo falle las pruebas, por ejemplo la de heterocedasticidad. Asimismo, el modelo tiene un sesgo por alguna variable omitida y un problema de multicolinealidad grave.
+
+
+*Ahora analizamos el último modelo.
+*MODELENGB (sin los ratings)
+regress spread num_lawyers_2 num_lawyers_0 c2-c44 y2-y62, robust
+eststo MODELENGB
+
+*(Test set)
+*1-linealidad: Se consideró que debido a los hallazgos anteriores y al ser todas las nuevas variables dummies, está prueba es incesesaria, se asume linealidad.
+
+*2-homocedasticidad: En este caso podemos obervar que los errores pueden no estan correlacionados con los valores ajusdatos.
+rvfplot
+*3-variable omitida: En este caso, no Puedo rechazar H0 con más del 95% de confianza. Por lo que a ese nivel de significancia, no hay sesgo de omisión de variables.
+ovtest
+*4-error de especificación: _hatsq es significatica con un p value de .477, por lo que no rechazamos H0 (no rechazamos que no tengamos error de especifícación)
+linktest
+*5-multicolinealidad: Definitivamente tenemos un problema de multicolinealidad con las variables que agregamos, pues 17 de ellas presentan una VIF mayor a 10.
+vif 
+*6-outliers: en el caso de outliers, detectamos algunos casos alejados pero no son tan evidentes como en los ejercicios pasados.
+avplot y40
+avplot num_lawyers_2
+
+*7-normalidad: En cuanto a normalidad, la distribución no se asemeja a una normal.
+drop e
+predict e, resid
+kdensity e, normal
+swilk e
+
+*Conclusión: Para el caso de el modelo modelENG2 de la submuestra con ley inglesa, tenemos algunos outliers pero poco relevantes o extremos.Asimismo, no tenemos sesgo de omisión ni error de especificación.
+
+*Comparación final
+
+esttab, b(a6) p(4) r2(4) nostar wide
+
+*La diferencia más notoria fue el uso de la opción Robust que realiza una regresión ponderada, donde el valor de los outliers tiene menor peso en la estimación de los parámetros. 
+
+*Además, partir el modelo en submuestras fue muy util para controlar para los casos outliers que eran tan extremos que han podido hacer que un modelo falle el test Bresuch-Pagan, e icnluso alejaban más la distribución de los errores para que se pareciera a una normal. Asimismo, gracias a las nuevas variables, a la división de la muestra y a la opción Robust, los nuevos modelos lograron aumentar su r^2, por ejemplo las r^2 para los modelos A y B de la juridicción estadounidense alcanzaron un valor de .6145 y .4463 respectivamente.
+
+*Sin embargo, muchas variables se omitieron debido a la estimación de la regresión con la opción robust, además el agregar demasiadas variables dummies hizo que estos modelos tuvieran problemas graves de multicolinealidad, así como de especificación y de omisión de variables.
+
+
+
+*VI
+
+*Agregamos a las regresiones las variables exclusivas de Bonos2 [ debtserviceexports gdpgrowth standarddeviationofexportgrowth ratioofshorttermdebttototaldebt reservesshorttermdebt ratioofdomesticcredittogdp ratioofreservesimports debtrescheduledinpreviousyear ratioofreservesgdp standarddeviationofexportgrowth2].
+*Comenzamos un análisis identico al anterior primero con la regresión que contempla al rating.
+*MODEL5A
+
+clear
+eststo clear
+use ej5 
+
+regress spread aaa aa a bb b num_lawyers_2 num_lawyers_0 c2-c44 y2-y62 debtserviceexports gdpgrowth standarddeviationofexportgrowth ratioofshorttermdebttototaldebt reservesshorttermdebt ratioofdomesticcredittogdp ratioofreservesimports debtrescheduledinpreviousyear ratioofreservesgdp standarddeviationofexportgrowth2, robust
+eststo MODEL6A
+
+*(Test set)
+*1-linealidad: primero observamos en una matriz general (solo de los valores nuevos) y luego averiguamos por las scatterplots más sopechosas. Se concluye que las relaciones son lineales.
+graph matrix spread debtserviceexports gdpgrowth standarddeviationofexportgrowth ratioofshorttermdebttototaldebt reservesshorttermdebt ratioofdomesticcredittogdp ratioofreservesimports debtrescheduledinpreviousyear ratioofreservesgdp standarddeviationofexportgrowth2
+
+*2-homocedasticidad:Ténemos algunos casos outliers los cuales si omitimos, lograríamos que el modelo fuera homocedastico.
+rvfplot
+*3-variable omitida: En esto caso rechazamos H0 con más del 99% de confianza, es decir rechazamos que el modelo no tenga variables omitidas.
+ ovtest
+*4-error de especificación: el valor p del hatsq es de .162, es decir significante, por lo que rechazamos H0, rechazamos que el modelo no tenga valores omitidos.
+linktest
+*5-multicolinealidad:  El modelo tiene 27 parámetros con un VIF mayor a 10 lo cuál indica que hay un problema grave de multicolinealidad.
+vif
+*6-outliers :Detectamos un grupo de outliers.
+avplot aaa 
+avplot b
+avplot ratioofdomesticcredittogdp
+
+*7-normalidad: Asimismo, con el test Shapiro-Wilk concluímos que los errores no se distribuyen de forma normal.
+predict e, resid
+kdensity e, normal
+swilk e
+
+*Ahora haremos el análisis para el segundo modelo (aquel que no contempla los ratings).
+*MODEL5B
+
+regress spread num_lawyers_2 num_lawyers_0 c2-c44 y2-y62 debtserviceexports gdpgrowth standarddeviationofexportgrowth ratioofshorttermdebttototaldebt reservesshorttermdebt ratioofdomesticcredittogdp ratioofreservesimports debtrescheduledinpreviousyear ratioofreservesgdp standarddeviationofexportgrowth2, robust
+eststo model6b
+
+*(Test set)
+*1-linealidad: De las gráficas se puede concluir que las relaciones son líneales y además detectamos algunos outliers.
+graph matrix spread debtserviceexports gdpgrowth standarddeviationofexportgrowth ratioofshorttermdebttototaldebt reservesshorttermdebt ratioofdomesticcredittogdp ratioofreservesimports debtrescheduledinpreviousyear ratioofreservesgdp standarddeviationofexportgrowth2
+
+avplot ratioofreservesgdp 
+avplot standarddeviationofexportgrowth2
+
+*2-homocedasticidad: Como en el modelo equivalente del ejercicio pasado, tenemos algunos casos outliers los cuales si omitimos, el modelo tendría homocedasticidad.
+rvfplot
+*3-variable omitida: No podemos rechazar la hipotesis nula del test de Ramsey, es decir, el modelo no tiene variables omitidas.
+ ovtest
+*4-error de especificación. En este caso _hatsq resultó ser muy significativa por lo rechazamos el nulo y concluimos que nuestro modelo no está correctamente especificado.
+linktest
+*5-multicolinealidad: El modelo presenta un grave caso de multicolinealidad pues 27 parámetros tienen un VIF mayor a 10.
+vif
+*6-outliers: a pesar de haber usado una regresión robusta, detectamos la presencia de outliers. 
+
+avplot num_lawyers_2
+avplot debtserviceexports
+*7-normalidad: finalmente debido a la prieva Shapiro-Wilk concluimos que los errores no se distribuyen de manera normal.
+drop e
+predict e, resid
+kdensity e, normal
+swilk e
+
+esttab, b(a6) p(4) r2(4) nostar wide
+
+*La principal conclusión esque a pesar de que estamos acarreando los mismos problemas de los modelos pasados, ahora estamos aprovechando que las nuevas variables "varían". Esto es muy importante en la regresión pues lo que trata de hacer es explicar la varianza de Y con base en la varianza de mis variables. Esto tiene consecuencias en que el primer modelo aumentó su r^2 hasta .3602 y el segundo hasta .3182. 
+
+
+*VII
+eststo clear
+probit rep_ibc_top2 lnamt years highrate2 hh_index_ib num_lawyers2 y2-y62
+eststo p1
+
+*(a)
+predict PROBITXB, xb
+gen lambda = normalden(PROBITXB)/normal(PROBITXB)
+probit rep_ibc_top2 lnamt years highrate2 hh_index_ib num_lawyers2 y2-y62 lambda
+eststo p2
+
+esttab, b(a6) p(4) r2(4) nostar wide
+*Lambda se refiere al "Mills ratio", en este caso a la probabilidad de la ocurrencia de rep_ibc_top2 entre toda su probabilidad acumulada. Se usa para controlar la endogenidad en el modelo, es decir al riesgo de que la muestra haya sido elegida (total o parcialmente) con base en algún valor de nuestra variables dependiente. Por ejemplo, pensemos en los algoritmos que calculan la probabilidad de que una persona imputada tenga derecho a prisión domicial o no en EEUU y como pueden tener un sesgo de selección en contra de las personas negros.
+*Solo para dimensionar
+predict f_hat
+tw line f_hat lambda, sort
+
+
+*(b)
+*Ahora replico 5a pero con lambda
+*Comenzamos un análisis  con la regresión que contempla al rating.
+*Si lambda es cero no hay sesgo de selecicón, por  lo que podemos hacer una prueba de significancia T.
+
+*MODEL7A
+eststo clear
+regress spread lambda aaa aa a bb b num_lawyers_2 num_lawyers_0 c2-c44 y2-y62, robust
+eststo MODEL7A
+
+ttest lambda ==0
+*El valor t es de 118, claramente indicando que lambda es mayor a 0. Hay sesgo de selección. 
+
+*Ahora realizamos el análisis con la regresión sin los ratings
+
+*MODEL7B
+regress spread lambda num_lawyers_2 num_lawyers_0 c2-c44 y2-y62 , robust
+eststo MODEL7B
+ttest lambda ==0
+*El valor t es de 118 también, claramente indicando que lambda es mayor a 0. Hay sesgo de selección. 
+
+esttab, b(a6) p(4) r2(4) nostar wide
+
+*Agregar la lambda sirve para corregir los modelos, en este sentido el r^2 de los modelos fue de .3509 y .284, menor al de los modelos del ejercicio 6. 
+
+*Conclusión de la tarea: Cada método de estimación tiene su proposito y de acuerdo a ese, una estructura particular. En el caso de la regresión líneal su objetivo es lograr obtener parámetros con poder explicativo, por lo cual se complica el analisis cuando metemos n variables dummy y en general con una gran cantidad variables. En cambio, otros métodos están más enfocados en predecir, en este sentido, un modelo probit puede aprovechar nuestra gran cantidad de variables dummies para generar una buena predicción. Asimismo, hay que considerar el riesgo de que nuestros modelos tengan sesgos como los de selección, especificación, multicolinealidad, heterocedasticidad, y para detectarlos y corregirlos (en la medida de lo posible) debemos aprovechar todas las herramientas que tengamos disponibles.
+
+log close _all

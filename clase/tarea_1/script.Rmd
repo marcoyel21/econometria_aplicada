@@ -1,0 +1,416 @@
+---
+output:
+  pdf_document: default
+geometry: margin=1in
+fontsize: 11pt
+header-includes :
+  \usepackage{geometry}
+  \usepackage{graphicx}
+  \tolerance=1
+  \emergencystretch=\maxdimen
+  \hyphenpenalty=10000
+  \hbadness=10000
+  \linespread{1.3}
+  \usepackage[justification=centering, font=bf, labelsep=period, skip=5pt]{caption} 
+  \usepackage{titling}
+  \usepackage[spanish]{babel}
+  \usepackage{fancyhdr}
+  \pagestyle{fancy}
+  \fancyhead[L]{Econometria Aplicada I}
+  \fancyhead[R]{ITAM}
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+\begin{titlepage}
+\begin{center}
+\textsc{\Large Instituto Tecnológico Autónomo de México}\\[2em]
+\textbf{\LARGE Econometría Aplicada I}\\[2em]
+\textsc{\large Tarea 1}\\[1em]
+\textsc{\LARGE }\\[1em]
+\textsc{\large }\\[1em]
+\textsc{\LARGE Marco Antonio Ramos Juárez}\\[1em]
+\textsc{\large 142244}\\[1em]
+\end{center}
+\vspace*{\fill}
+\textsc{Ciudad de México \hspace*{\fill} 2020}
+\end{titlepage}
+\newpage
+\tableofcontents
+\newpage
+
+```{r, message=FALSE, echo=FALSE, warning=FALSE, include=FALSE}
+#primero importo los paquetes que se usaran.
+install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+install.packages("devtools", repos = "http://cran.us.r-project.org")
+devtools::install_github("kassambara/easyGgplot2")
+library(tidyverse)
+library(devtools)
+library(easyGgplot2)
+#desactivo la notación científica
+options(scipen=999)
+```
+
+```{r, message=FALSE, echo=FALSE, warning=FALSE, include=FALSE}
+### I
+# El primer paso es importar mis datos
+# Para que este ejercicio sea replicable en cualquier lugar, los bajaré de un repositorio online que creé para las tareas de econometría aplicada.
+# No hay necesidad de cambiar el directorio
+# Defino a las bases como m y p respectivamente
+m<-read_csv("BaseCOVIDm.csv")
+p<-read_csv("BaseCOVIDp.csv")
+## I.a 
+#Calcula la tasa de positividad (POS)
+#Para ello simplemente agrego una columna con la nueva variable POS.
+m<-mutate(m, POS = Confirmed/Tests)
+p<-mutate(p, POS = Confirmed/Tests)
+#Calcule la media
+#Para calcular la media y varianza tengo que controlar los valores "NA". 
+#Para minimizar el sesgo, se consideró que lo mejor es simplemente omitir los NAs para el conteo.
+m_POS<-filter(m,!is.na(POS)) #Base de datos m filtrada
+n_m_POS<-nrow(m_POS) #N de la base m filtrada
+p_POS<-filter(p,!is.na(POS)) #Base de datos p filtrada
+n_p_POS<-nrow(p_POS) #N de la base p filtrada
+media_m_POS<-sum(m_POS$POS)/n_m_POS #Media calculada como el promedio de los POS omitiendo los NAs
+media_p_POS<-sum(p_POS$POS)/n_p_POS #Media calculada como el promedio de los POS omitiendo los NAs
+# estimador muestral de la varianza
+var_m_POS<-sum((m_POS$POS-media_m_POS)^2)/(n_m_POS-1)
+var_p_POS<-sum((p_POS$POS-media_p_POS)^2)/(n_p_POS-1)
+var2_m_POS<-sum((m_POS$POS)^2)/n_m_POS-media_m_POS^2 #Forma alternativa E(X^2)-E(X)^2
+var2_p_POS<-sum((p_POS$POS)^2)/n_p_POS-media_m_POS^2 #Forma alternativa E(X^2)-E(X)^2
+# cálculo el intervalo de confianza del 95% para la media de ambas muestras
+upper_media_m_POS<-media_m_POS+qt(.975,n_m_POS-1)*(var_m_POS/n_m_POS)^.5
+lower_media_m_POS<-media_m_POS-qt(.975,n_m_POS-1)*(var_m_POS/n_m_POS)^.5
+upper_media_p_POS<-media_p_POS+qt(.975,n_p_POS-1)*(var_p_POS/n_p_POS)^.5
+lower_media_p_POS<-media_p_POS-qt(.975,n_p_POS-1)*(var_p_POS/n_p_POS)^.5
+```
+
+# Nota
+
+El *script* de esta tarea se realizo en R Markdown y está diseñado para que se ejecute sin ninguna modificación (ni siquiera de los ficheros donde están las bases de datos pues se descargan directamente de un repositorio online). Asimismo, todos los cálculos (como varianzas, promedios, intervalos de confianza y estadísticos) se hicieron de manera "manual" y se explica el proceso en el script. Finalmente, cabe destacar que en cuanto al *bootstrap* y demás procesos aleatorios, cada vez que se ejecute el documento se van a generar diferentes datos, por lo que las cifras y gráficas serán diferentes en caso de que se ejecute de nuevo.
+
+\newpage
+
+# I
+## (a)
+
+Utilizando la base BaseCOVIDm se calculo la tasa de positividad (POS) de los países de la muestra. En la siguiente cuadro se muestran la tasas.
+```{r, echo=FALSE, warning=FALSE}
+#Este código solamente es para mostrar la tabla con el cálculo de POS.
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE)
+t1<- m %>% select(Country,Confirmed,Tests,POS) %>% arrange(desc(POS))
+kable(t1, caption  = "Tasa de positividad",col.names = c("País", "Confirmados", "Pruebas", "Tasa de positividad (POS)"), format="markdown") 
+```
+
+Del cuadro podemos observar dos cosas: en primer lugar, que México tiene la POS más grande de nuestra muestra; en segundo lugar, que no se pudo calcular la tasa para una cantidad considerable de países debido a que no contaban con información suficiente. Esto segundo nos indica que para calcular la media y varianza debemos omitir en los conteos a los países con tasas de positividad con NA. 
+
+De esta manera, para los `r n_m_POS` países en los que se pudo calcular la tasa POS, la media muestral es de `r media_m_POS`**  y la varianza muestral es de `r var_m_POS`. Asimismo, el intervalo de confianza al 95% es `r lower_media_m_POS` $\le$ *$\mu$* $\le$ `r upper_media_m_POS`.
+
+
+## (b)
+```{r, echo=FALSE, warning=FALSE}
+#H0:media_m_POS-MX_POS=0
+#H1:media_m_POS-MX_POS<0
+MX_POS<- m_POS[m_POS$ISO_code=="MEX","POS"] #Primero busco el POS de MEX
+MX_POS<-as.numeric(MX_POS) # Tengo que convertir en númerico porque me da una pequeña tabla que aunque mida 1x1, aún trae datos de los encabezados
+t1b<-(media_m_POS - MX_POS)/(var_m_POS/n_m_POS)^.5
+pvalue1b<-pt(t1b,n_m_POS-1) #el p value es diminuto (casi 0) por lo que rechazamos h0
+pvalue1bi<-format(pvalue1b, digits=2) #para pober mostrar el valor p que es muy pequeño
+```
+
+Como se puede apreciar en el **Cuadro 1**, México tiene una POS de `r MX_POS`. De esta manera, es pertinente plantearnos si la POS de México es significantemente mayor que la media mundial ($\mu$). Por ello realizamos la siguiente prueba de hipotesis.
+
+**H~0~**: $\mu$ - `r MX_POS` = 0
+
+**H~A~**: $\mu$ - `r MX_POS` < 0
+
+De esta prueba de hipotesis obtenemos un valor *t* de `r t1b` y un valor $\rho$ de `r pvalue1bi` el cual es casi 0 por lo que rechazamos **H0**.
+
+## (c)
+```{r, echo=FALSE, warning=FALSE}
+## I.c
+#Creo la variable CFR
+m<-mutate(m, CFR = Deaths/Confirmed)
+p<-mutate(p, CFR = Deaths/Confirmed)
+#Calculo la media y la varianza pertinentes
+media_m_CFR<-sum(m$CFR)/nrow(m)
+var_m_CFR<-sum((m$CFR-media_m_CFR)^2)/(nrow(m)-1)
+media_SARS<-.096
+#H0:media_m_CFR - (1/4)*.096 = 0
+#H1:media_m_CFR - (1/4)*.096 =/= 0
+t1c<-(media_m_CFR - media_SARS/4)/(var_m_CFR/nrow(m))^.5
+pvalue1b<-2*(1-pt(t1c,nrow(m))) #el p value es muy pequeño; sería muy fácil rechazar h0
+```
+Las comparaciones de la pandemia actual con epidemias previas son útiles para dimensionar la coyuntura actual. Por ello, con el fin de comparar la falatidad media (CFR) del SARS-CoV (del 2002) con el del SARS-CoV-2 (actual) hemos calculado la fatalidad media actual. Mientras que la CFR media del SARS-CoV fue de 9.6%, la CFR media del SARS-CoV-2 en nuestra muestra fue de `r media_m_CFR` con una varianza de `r var_m_CFR`.
+
+De esta manera planteamos una prueba hipotesis para saber si la media mundial del SARS-COV ($\mu$) es de 4 veces aquella del SARS-COV-2, o, planteado de otra manera, si la CFR del actual SARS-COV es igual a un cuarto de 9.6%.
+
+**H~0~**: $\mu$ - .024 = 0
+
+**H~A~**: $\mu$ - .024 $\neq$ 0
+
+El estadistico t que resulta es de `r t1c` con un valor $\rho$ de `r pvalue1b`. De esta manera, los valores *t* y $\rho$ indican que podemos rechazar la hipotesis nula con más del 99% de confianza.
+
+## (d)
+```{r, echo=FALSE, warning=FALSE}
+## I.d
+#En una prueba de dos colas, a partir de un nivel de confianza menor a resp los invervalos de confianza ya no contemplan el valor media_SARS/4)
+resp<-1-pvalue1b
+```
+
+El intervalo de confianza relevante para nuestra prueba de hipótesis ya no incluiría el valor de .024 a partir de un nivel de confianza $\alpha$ de `r resp`. Donde `r resp` es igual a 1 - `r pvalue1b` es decir a $1-\rho$.
+
+# II
+```{r, echo=FALSE, warning=FALSE}
+###II
+#Creo la variable PPI
+m<-mutate(m, PPI = Confirmed/Population)
+p<-mutate(p, PPI = Confirmed/Population)
+```
+Ahora estamos interesados en conocer el porcentaje de la población total de cada país que ha contraido el virus (PPI), por lo que calculamos esa variable con el cociente  $\frac{Confirmed}{Population}$.
+
+## (a)
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#II.a
+#Calculo el valor del primer cuartil poblacional
+q1p<-as.numeric(quantile(p$PPI,probs = .25))
+```
+Para poder analizar mejor la información, creamos un histograma del valor de PPI de la base BaseCOVIDp. Asimismo, **señalamos con una línea roja en el histograma al valor del primer cuartil (`r q1p`)**. La información se muestra en el gráfico siguiente.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Elaboro el histograma poblacional
+ggplot()+
+  geom_histogram (p, mapping = aes(x=PPI)) + 
+  geom_vline(xintercept = q1p,linetype="dotted",color = "red", size=1.5)+
+  labs( title= "Grafica 1: Frecuencia de la variable Población Infectada en BaseCOVIDp", y="Frecuencia", x = "Valor de PPI")+
+  theme(plot.title = element_text(hjust = 0.5),text=element_text(family="Palatino"))
+```
+
+A partir de la gráfica podemos observar que el valor de PPI alrededor del los países dentro de BaseCOVIDp está muy concentrado hacia los valores pequeños. 
+
+## (b)
+
+De manera similar, realizamos el mismo ejercicio para la base de datos BaseCOVIDm, que recordemos se refiere a una muestra de 100 países. Sin embargo, ahora **usaremos una línea de color blanco para indicar el primer cuartil de BaseCOVIDm mientras que seguiremos indicando con una línea roja al primer cuartil de la BaseCOVIDp** (la misma del ejercicio anterior) con el fin de compararlas.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#II.b
+#Calculo el valor del primer cuarti muestral
+q1m<-as.numeric(quantile(m$PPI,probs = .25))
+#Elaboro el histograma muestral
+ggplot()+
+  geom_histogram (m, mapping = aes(x=PPI)) + 
+  geom_vline(xintercept = q1m,linetype="dotted", color = "white", size=1.6)+ 
+  geom_vline(xintercept = q1p,linetype="dotted",color = "red", size=1.5)+
+  labs( title= "Grafica 2: Frecuencia de la variable Población Infectada en BaseCOVIDm", y="Frecuencia", x = "Valor de PPI")+
+  theme(plot.title = element_text(hjust = 0.5),text=element_text(family="Palatino"))
+```
+
+Notemos que aunque ambos cuartiles están muy cerca, el valor del primer cuartil de BaseCOVIDm es ligeramente mayor al de BaseCOVIDp por `r q1m-q1p`unidades.
+
+## (c)
+
+El segundo histograma está incluido en el primero, y debido a que es de un n=100 (más de la mitad del n poblacional) se espera ex ante que sea un histograma muy similar. A pesar de ello, el simple hecho de que BaseCOVIDm tenga menos datos hace que la dispersión de los valores sea mayor y que el pico más alto del histograma sea en un punto más bajo, debido a una menor frecuencia posible.
+
+Como se mencionó en el inciso anterior, cabe notar que el primer cuartil tiene un valor diferente y que el PPI muestral  sea más grande que el delsupuesto poblacional. Esta situación indica que la muestra cuenta con una proporción mayor de países con un PPI mediano o alto. Finalmente, es interesante que el cuarto cuartil es el mismo para ambos histogramas lo que indica que comparten el país del PPI máximo.
+
+## (d)
+
+En esta parte procederemos a utilizar el método *Bootstrap* que consiste en generar *J* submuestras de tamaño *L*. En este caso se realizaron 1000 iteraciones de tamaño 100. En cada iteración se calculo el valor del primer cuartil. En la siguiente gráfica se muestra un histograma con los valores de los 1000 primeros cuartiles calculados. **Notese que se dejaron las líneas anteriores (blanca para el primer cuartil muestral y roja para el poblacional)**. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#II.d
+rm(.Random.seed, envir=globalenv())#primero que nada actualizo mi configuración del seed para que no se estanquen las funciones que generan valores aletaroios en un mismo patrón.
+muestraleatoria<-sample_n(m,100,replace=TRUE)  #la función me produce una muestra aleatoria de tamaño 100 con remplazo
+primercuartil<-as.numeric(quantile(sample_n(m,100,replace=TRUE)$PPI,probs = .25)) #Esta función me permite calcular el primer cuartil de la distribución.
+#sin embargo, si les asigno una etiqueta la función replicate me repetiría una constante, por lo que debo indicar que quiero que la función replicate ejecute no una constante sino la función completa n veces.
+#por ello debo meterla completa sin etiquetas
+qid<-replicate(1000,as.numeric(quantile(sample_n(m,100,replace=TRUE)$PPI,probs = .25))) #de esta manera replico 1000 veces el proceso de generar una muestra aleatoria de 100 valores con repetición y de calcular el primer cuartil
+ggplot()+
+  geom_histogram ( mapping = aes(x=qid)) + 
+  geom_vline(xintercept = q1m,linetype="dotted", color = "white", size=1.5)+
+  geom_vline(xintercept = q1p,linetype="dotted",  color = "red", size=1.5)+
+  labs( title= "Grafica 3: Bootstrap para el primer cuartil", y="Frecuencia", x = "Valor del primer cuartil")+
+  theme(plot.title = element_text(hjust = 0.5),text=element_text(family="Palatino"))
+```
+
+Lo primero que notamos esque la distribución está sesgada hacia la derecha. Asimismo, en esta gráfica es más fácil notar la diferencia entre los cuartiles de BaseCOVIDm y BaseCOVIDp.
+
+## (e)
+
+Ahpra realizaremos el mismo ejercicio solo que en lugar de un **L** de tamaño 100 usaremos uno de 70. De esta manera, en la siguiente gráfica podemos comparar ambos ejercicios. Asimismo, dejamos las líneas blanca muestral y roja poblacional para poder hacer un mejor análisis visual.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#II.e
+qie<-replicate(1000,as.numeric(quantile(sample_n(m,70,replace=TRUE)$PPI,probs = .25))) #de esta manera replico 1000 veces el proceso de generar una muestra aleatoria de 100 valores con repetición y de calcular el primer cuartil
+# Para hacer los histogramas combinados, creo un dataframe con los bootstraps obtenidos.
+# Esto debido a que originalmente mis datos los tenía en un vector y eso es complicado a la hora de manipular ggplot2
+#para l=70
+e1<- matrix(qie, ncol=1, byrow=TRUE)
+e2 <- as.data.frame(e1, stringsAsFactors=FALSE)
+e3<- mutate(e2, L = "70") 
+#para l=100
+e4<- matrix(qid, ncol=1, byrow=TRUE)
+e5<- as.data.frame(e4, stringsAsFactors=FALSE)
+e6<- mutate(e5, L = "100") 
+# finalmente, los combino en un solo data frame
+boots<-rbind(e3, e6) %>% rename ("Bootstraps" ="V1" )
+#ahora es sencillo graficarlos
+ggplot2.histogram(data=boots, xName="Bootstraps",groupName='L', legendPosition="top", alpha=0.01 )+  
+  geom_vline(xintercept = q1m,linetype="dotted",color = "white", size=1.5) +
+ geom_vline(xintercept = q1p,linetype="dotted",  color = "red", size=1.5) +
+  labs( title= "Grafica 4: Comparación entre Bootraps", y="Frecuencia", x = "Valor del primer cuartil")+
+  theme(plot.title = element_text(hjust = 0.5),text=element_text(family="Palatino"))
+# Sin duda siguen la misma distribución solo que la de L menos tiene mayor disperción mientras que la de L mayor se concentra más en la media del primer cuantil de la muestra original.
+```
+
+Sin duda siguen la misma distribución solo que el histograma de L=70 tiene mayor disperción mientras que el de L=100 se concentra más en la línea blanca del primer cuartil de BaseCOVIDm.
+
+## (f)
+
+Con base en el ejercicio anterior podemos consturir un intervalo de confianza.  Lo fácil de usar este método esque no tienes que asumir supuestos sobre la distribución porqué ya se simulo una. En este sentio, el intervalo de confianza al 99% solo corresponde al valor 5 y al valor 995 de los 1000 primeros cuartiles medios simulados. Asimismo, dependiendo la muestra que usemos, los intervalos de confianza estarán más o menos acotados. 
+
+A continuación se muestra el ejercicio para el caso de la *L*=100, se grafican con azul el intervalo de confianza, y como en los ejercicios previos, con blanco el primer cuartil muestral y con rojo el poblacional.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#II.f
+# Dependiendo la muestra que usemos, los intervalos de confianza estarán más o menos acotados.
+#Para L=100
+bootupL100<-quantile(qid,probs = .995) # si ordenaramos la lista de menos a mayor, el valor 995º  nos da la cota superior
+bootdownL100<-quantile(qid,probs = .005) #el valor 005º nos daría la cota inferior
+ggplot()+
+  geom_histogram ( mapping = aes(x=qid))+
+ geom_vline(xintercept = q1m,linetype="dotted", color = "white", size=1.5) +
+ geom_vline(xintercept = bootupL100,linetype="dotted", color = "blue", size=1.5) +
+ geom_vline(xintercept = bootdownL100,linetype="dotted",  color = "blue", size=1.5) +
+ geom_vline(xintercept = q1p,linetype="dotted",  color = "red", size=1.5) +
+  labs( title= "Grafica 5: Intervalo de confianza al 99% proveniente de un Bootrap con L=100)", y="Frecuencia", x = "Valor del primer cuartil")+
+  theme(plot.title = element_text(hjust = 0.5),text=element_text(family="Palatino"))
+```
+
+En este caso, el intervalo de confianza es `r bootdownL100` $\le$ *q1* $\le$ `r bootupL100`. A continuación se muestra el ejercicio para el caso de la *L*=70.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Para L=70
+bootupL70<-quantile(qie,probs = .995)
+bootdownL70<-quantile(qie,probs = .005)
+ggplot()+
+  geom_histogram ( mapping = aes(x=qie))+
+  geom_vline(xintercept = q1m,linetype="dotted", color = "white", size=1.5) +
+  geom_vline(xintercept = bootupL70,linetype="dotted", color = "blue", size=1.5) +
+  geom_vline(xintercept = bootdownL70,linetype="dotted",  color = "blue", size=1.5) +
+  geom_vline(xintercept = q1p,linetype="dotted",  color = "red", size=1.5)+
+  labs( title= "Grafica 6: Intervalo de confianza al 99% proveniente de un Bootrap con L=70)", y="Frecuencia", x = "Valor del primer cuartil")+
+  theme(plot.title = element_text(hjust = 0.5),text=element_text(family="Palatino"))
+```
+
+En este caso, el intervalo de confianza es `r bootdownL70` $\le$ *q1* $\le$ `r bootupL70`. Mientras que la longitud del primer intervalo es de `r bootupL100 - bootdownL100` la del segundo es de `r bootupL70 - bootdownL70`. Por lo que parece que es mejor usar el primero.
+
+En conclusión, el intervalo de confianza proveniente del *Bootstrap* con **L**=100 es mejor debido a que es un intervalo más corto. Esto se debe a que su histograma presentaba menor varianza y estaba más concentrado en el primer cuartil de la muestra.
+
+# III
+
+A lo largo de los meses que ha durado la pandemia han surgido diversas preguntas. Una de ellas se enfoca en la relación que existe entre el porcentaje de personas a las que se les han realizado pruebas($PT=\frac{Tests}{Population}$) y el porcentaje de personas contagiadas ($PPI=\frac{Confirmed}{Population}$). Por lo que el primer paso de este ejercicio es crear dichas variables en nuestras bases de datos.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+##III
+#En primer lugar, creamos la nueva variable PT
+m<-mutate(m, PT = Tests/Population)
+p<-mutate(p, PT = Tests/Population)
+```
+## (a)
+
+A continuación se presenta un diagrama de dispersión para visualizar la relación entre PT y PPI con respecto a la base BaseCOVIDm.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#III.a
+ggplot()+geom_point(mapping = aes(x=m$PT,y=m$PPI))+
+  labs( title= "Grafica 7: Diagrama de dispersión para PT y PPI", y="Pocentaje de personas contagiadas (PPI)", x = "Porcentaje de personas a las que se les ha realizado pruebas (PT)")+
+  theme(plot.title = element_text(hjust = 0.5),text=element_text(family="Palatino"))
+```
+
+## (b)
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#III.b
+#Busco el PT de México
+MX_PT<- m[m$ISO_code=="MEX","PT"] #Primero busco el POS de MEX
+MX_PT<-as.numeric(MX_PT)# Tengo que convertir en númerico porque me da una pequeña tabla que aunque mida 1x1, aún trae datos de los encabezados
+# Busco el PPI de México
+MX_PPI<- m[m$ISO_code=="MEX","PPI"] #Primero busco el PPI de MEX
+MX_PPI<-as.numeric(MX_PPI)# Tengo que convertir en númerico porque me da una pequeña tabla que aunque mida 1x1, aún trae datos de los encabezados
+#Para facilitarle el trabajo a ggplot2 creo un dataframe con la condición que necesito (MX_PT +/-.005)
+vecindad_MX<-filter(m,PT>=MX_PT-.005&PT<=MX_PT+.005)%>% subset(!ISO_code=="MEX")
+n_vecindad_MX<-nrow(vecindad_MX) #Cantidad de países que cumplen la condición
+#Ahora calculo la media de PPI de la vecindad_MX
+media_vecindad_MX_PPI<-sum(vecindad_MX$PPI)/n_vecindad_MX
+```
+
+En esta sección propondremos una vecindad de radio .005 para el valor PT de México para analizar su valor PT con respecto a sus vecinos. A continuación se realiza dicha gráfica, asimismo, dentro de ella se indica con una línea de color verde el valor PT de México (`r MX_PT`) y con una línea roja el valor promedio PT de la vecindad, sin contar a México(`r media_vecindad_MX_PPI`).
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#finalmente, grafico el histograma junto con una línea verde que indica el valor PPI de México y una línea roja que indica el promedio de PPI de la vecindad
+ggplot()+
+  geom_histogram ( mapping = aes(x=vecindad_MX$PPI))+
+  geom_vline(xintercept = media_vecindad_MX_PPI,linetype="dotted", color = "red", size=1.5) +
+  geom_vline(xintercept = MX_PPI,linetype="dotted", color = "green", size=1.5) +
+  labs( title= "Grafica 8: Histograma para PPI de la vecindad de Mexico", y="Frecuencia", x = "Porcentaje de Personas Contagidas")+
+  theme(plot.title = element_text(hjust = 0.5),text=element_text(family="Palatino"))
+# El PPI de México se encuentra por arriba de la media de PPI de la vecindad_MX
+# Parece que México está tiene un PPI muy alto para tener un PT tan bajo
+```
+
+A partir de la gráfica podemos concluir que el PPI de México se encuentra por arriba de la media de PPI de la vecindad. En este sentido, parece que México tiene un PPI muy alto como para tener un PT tan bajo.
+
+## (c)
+
+De manera alternativa, procederemos a estimar una regresión con mínimos cuadrados ordinarios de la forma $PPI_i=B_0+B_1PT_i+U_i$. 
+
+En la siguiente gráfica de dispersión mostramos nuevamente la relación entre PT y PPI sin embargo ahora mostraremos también la regresión estimada encima y enfatizaremos al punto que representa a México. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#III.c
+reg1<-lm(PPI~PT,m) #Estimo la regresión
+m_MX <- m %>% filter(ISO_code =="MEX") #Creo un data frame que solo contenga los valores de Mëxico para poder identificar su punto en la gráfica
+ggplot(m, mapping = aes(x=m$PT,y=m$PPI)) + 
+  geom_point()+
+  geom_smooth(method=lm, se=FALSE)+
+  geom_point(data=m_MX,aes(x=m_MX$PT,y=m_MX$PPI, color=Country),size=3)+
+  labs( title= "Grafica 9: Relación entre PT y PPI (BaseCOVIDm)", y="Pocentaje de personas contagiadas (PPI)", x = "Porcentaje de personas a las que se les ha realizado pruebas (PT")+
+  theme(plot.title = element_text(hjust = 0.5),text=element_text(family="Palatino"))
+#El punto de México se encuentra por arriba de la regresión.
+#Esto lo podemos interpretar como que México tiene un PPI por arriba del PP esperado de acuerdo a su nivel de PT.
+```
+
+En la gráfica podemos observar que el punto de México se encuentra por arriba de la regresión. Esto lo podemos interpretar como que México tiene un PPI por arriba del PP esperado de acuerdo a su nivel de PT.
+
+De manera similar podemos hacer el ejercicio para la BaseCOVIDp.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#duplicamos el ejercicio para la base BaseCOVIDp
+reg2<-lm(PPI~PT,p) #Estimo la regresión
+p_MX <- m %>% filter(ISO_code =="MEX") #Creo un data frame que solo contenga los valores de Mëxico para poder identificar su punto en la gráfica
+ggplot(p, mapping = aes(x=p$PT,y=p$PPI)) + 
+  geom_point()+
+  geom_smooth(method=lm, se=FALSE)+
+  geom_point(data=p_MX,aes(x=p_MX$PT,y=p_MX$PPI, color=Country),size=3)+
+  labs( title= "Grafica 9: Relación entre PT y PPI (BaseCOVIDp)", y="Pocentaje de personas contagiadas (PPI)", x = "Porcentaje de personas a las que se les ha realizado pruebas (PT)")+
+  theme(plot.title = element_text(hjust = 0.5),text=element_text(family="Palatino"))
+#El punto de México se encuentra por arriba de la regresión.
+#Esto lo podemos interpretar como que México tiene un PPI por arriba del PP esperado de acuerdo a su nivel de PT.
+```
+
+## (d)
+
+Entre las siilitudes están que ambas estrategias se basan en comparar la situación de un país con respecto a la relación entre dos variables.Entre las diferencias están que el primer enfoque es más atómico pues baja la lupa hasta el país de interés y su vecindad y a partir de ahí se compara el valor del país con el valor promedio de la vecindad; por el contrario, el segundo enfoque es más general pues la regresión aprovecha la información de todos los países para generar una linea que abarca todo el plano.
+
+## (e)
+
+La diferencia radica en que tendriamos un *n* mayor por lo que habría mayor certeza en los resultados. La BaseCOVIDp es de casi la totalidad de la población (considerando que existen 195 países actualmente). En este sentido, tendríamos más información para hacer una regresión y más información para comparar el valor de una variable de un país con respecto a la media de su vecindad.
+
+
+# IV
+
+Los países que no aparecen en la BaseCOVIDp van a estar subrepresentados en los resultados que obtengamos a partir de la base muestral. Probablemente sea porque no cuentan con la infraestructura institucioanl suficiente para recolectar y reportar datos o incluso como para entrablar relaciones internacionales multilaterales o mantener sus obligaciones ante las instituciones encargadas de la publicación de datos, por ejemplo la OMS. En ese sentido nuestros parametros poblaciones siguen siendo desconocidos y aquellos que podamos calcular con base en BaseCOVIDp serían muestrales (aunque muy valiosos pues la *n* es casi el poblacional). En este sentido, nuestros estimadores serían muy optimistas pues estarían ligeramente sesgados en favor de los países "cumplidores" ( es decir, aquellos que tienen la **capacidad** e interés en generar datos y reportarlos). Asimismo, esto quiere decir que nuestros estimadores tienen una varianza mayor a la que pensabamos pues nuestra muestra poblacional (BaseCOVIDm) en realidad es una muestra de una muestra.
+
+\newpage

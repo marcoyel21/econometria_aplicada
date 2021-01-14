@@ -1,0 +1,121 @@
+cd "/Users/marcoyel21/Desktop/parcial_1"
+log using 142244_MARCOANTONIORAMOSJUAREZ_S2_Parcial.log, replace 
+
+/*=================================================================
+
+EXÁMEN PRIMER PARCIAL DE LA MATERIA ECONOMETRÍA APLCIADA - CLASE PRÁCTIA"
+
+© Marco Antonio Ramos Juárez, 2020
+==================================================================*/
+
+/* ++++++++++++++++++++++++++++++++++++++++++
+			- SET UP ENVIRONMENT
+++++++++++++++++++++++++++++++++++++++++++ */
+
+* Limpiamos el ambiente
+
+clear all
+
+* Set working directory to locate data
+
+cd "/Users/marcoyel21/Desktop/parcial_1"
+
+* Invocamos a base de datos 
+
+use auto
+
+/* ++++++++++++++++++++++++++++++++++++++++++
+			I - Descripción de bases de datos 
+			    y regresión
+++++++++++++++++++++++++++++++++++++++++++ */
+
+* a.  
+bysort foreign: summarize mpg weight
+
+*b.
+*En primer lugar, los autos extranjeros en promedio tienen un mejor desempeño mpg, aunque por tan solo casi 5 mpg y con una varianza mayor a la de los automobiles domésticos ; en segundo lugar, los automobiles domesticos son en promedio más pesado y con una varianza mayor, con una diferencia en medias de casi 1000 kg. Sin embargo hay que notar el tamaño de los grupos: mientras que existen 52 tipos de automóbil domésticos, extranjeros tan solo 22.
+
+*c. 
+regress mpg weight foreign
+
+*d).
+* El coeficiente de la variable dummy foreign es de -1.65 lo que en un principio indicaría un efecto negatico en mpg, sin embargo notamos que el estadístico t tiene un valor menor a dos y con un pvalue de .130 lo que nos indica que no podemos rechazar la hipotesis nula que el parámetro sea igual a cero de manera de manera estadísticamente significante.
+
+/* ++++++++++++++++++++++++++++++++++++++++++
+			II - Regresión y valores generados
+++++++++++++++++++++++++++++++++++++++++++ */
+
+* a. 
+regres mpg price weight 
+
+* b. Aunque ya existe un escalar de r^2 ajustada calculada, podemos calcularlo "manual" y luego asegurarnos que el cálculo sea correcto.
+
+ display e(r2)-(1- e(r2))*( e(df_m))/e(df_r)
+ display e(r2_a)
+ 
+* c.
+
+
+* d. 
+scalar tweight = _b[weight]/_se[weight]
+display tweight
+
+*d. 
+* No tenemos evidencia para sostener que el parámetro debería ser 0. El estadístico t tiene un valor por afuera de los valores críticos definidos para la distribución t con n-k grados de libertad con más del 99% de confianza.
+display 2-ttail(e(df_r), tweight)
+
+/* ++++++++++++++++++++++++++++++++++++++++++
+			III - Bucles
+++++++++++++++++++++++++++++++++++++++++++ */
+
+*a. 
+
+generate total = 0
+
+foreach v of varlist headroom length {
+
+replace total = total+`v'
+
+}
+
+display total
+
+sum total
+
+*b.
+*De la función summarie puedo concluir que realicé la variable total de manera exitosa sin embargo lo compruebo sumanod las medias directamente.
+
+summarize total headroom length
+
+summarize total, meanonly
+scalar tmean = r(mean)
+summarize headroom, meanonly
+scalar hmean = r(mean)
+summarize length, meanonly
+scalar lmean = r(mean)
+scalar suma = hmean + lmean
+scalar diff = tmean-suma
+display diff
+
+/* ++++++++++++++++++++++++++++++++++++++++++
+			IV- Variables Aleatorias
+++++++++++++++++++++++++++++++++++++++++++ */
+
+*a. 
+set seed 12345
+set obs 100
+gen x1 = runiform()
+gen x2 = runiform()
+
+*b. 
+summarize x1 x2
+
+*Podemos realizar 4 pruebas de hipotesis
+ttest x1==.5
+sdtest x1== .288675
+ttest x2==.5
+sdtest x2== .288675
+
+*Ambas medias se encuentran dentro del intervalo de confianza al 95% sugerido por el test y en las 4 pruebas se obtuvieron valores p mayores a .28 (incluso uno de .7) lo que sugiere que la probabilidad de cometer error de tipo I es muy alta.  En este sentido,  la conclusión se mantiene para el conjunto de datos creados.
+
+log close _all

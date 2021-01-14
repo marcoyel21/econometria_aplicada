@@ -1,0 +1,583 @@
+---
+title: "Untitled"
+author: "Marco Antonio Ramos"
+date: "11/18/2020"
+output:
+  pdf_document: default
+  latex_engine: xelatex
+  fig_caption: yes
+geometry: margin=1in
+fontsize: 11pt
+header-includes :
+  \usepackage{geometry}
+  \usepackage{graphicx}
+  \tolerance=1
+  \emergencystretch=\maxdimen
+  \hyphenpenalty=10000
+  \hbadness=10000
+  \linespread{1.3}
+  \usepackage[justification=centering, font=bf, labelsep=period, skip=5pt]{caption} 
+  \usepackage{titling}
+  \usepackage[spanish,es-nodecimaldot]{babel}
+  \usepackage{fancyhdr}
+  \pagestyle{fancy}
+  \fancyhead[L]{Econometria Aplicada I}
+  \fancyhead[R]{ITAM}
+ \usepackage{float}
+ \floatplacement{figure}{H}
+---
+
+\begin{titlepage}
+\begin{center}
+
+\textsc{\Large Instituto Tecnológico Autónomo de México}\\[2em]
+
+\textbf{\LARGE Econometría Aplicada I}\\[2em]
+
+\textsc{\large Exámen Final: Parte Inidividual}\\[1em]
+
+\textsc{\LARGE }\\[1em]
+
+
+\textsc{\LARGE }\\[1em]
+
+\textsc{\large }\\[1em]
+\textsc{\LARGE }\\[1em]
+
+\textsc{\LARGE Profesor: Irving Arturo de Lira Salvatierra}\\[1em]
+
+\textsc{\LARGE }\\[1em]
+
+\textsc{\LARGE Alumno: Marco Antonio Ramos Juárez}\\[1em]
+
+\textsc{\large 142244}\\[1em]
+
+\end{center}
+
+\vspace*{\fill}
+\textsc{Ciudad de México \hspace*{\fill} 2020}
+
+\end{titlepage}
+
+
+\newpage
+\tableofcontents
+\newpage
+
+```{r}
+#Activo que se muestre el códgio
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+#packageurl <- "https://cran.r-project.org/src/contrib/Archive/rowr/rowr_1.1.3.tar.gz"
+#install.packages(packageurl, repos=NULL, type="source")
+
+```
+
+
+# Ambiente
+
+```{r, message=FALSE}
+#Desactivo la notación científica
+options(scipen=999)
+
+# Primero importo los paquetes que se usaran.
+library(MASS)
+library(rv)
+library(dplyr)
+library(sandwich)
+library(quantreg)
+library(ggplot2)
+library(MLmetrics)
+library(rowr) #Este paquete está desactualizado por lo que en caso de no tenerlo se tiene que importar desde el archive
+library(readxl)
+library(tseries)
+library(astsa)
+library(forecast)
+
+
+```
+
+
+# I.
+
+
+```{r}
+
+# Primero creo mi base de datos con variables aleatorias que provienen de una distribución normal multivariada.
+set.seed(12346)
+p <- 100  ## normal multivaraida de p dimensiones
+set.seed(0); X <- matrix(runif(p * p), p, p)  ## Esta es la matriz de rango completo
+COV <- crossprod(X)  ## t(X) %*% X 
+mu <- rep(0, p)  ## Vector de medias 0
+x <- mvrnorm(5000, mu, COV)  ## mvrnorm(sample.size, mean, covariance)
+x<-as.data.frame(x)
+
+
+#Creo una función para bautizar mis columnas como xi
+colRename<-function(x){  
+  for(i in 1:ncol(x)){
+    colnames(x)[i] <- paste("x",i,sep="")
+  }  
+  return(x)
+}
+x<-colRename(x)
+```
+
+# II.
+
+
+```{r}
+#Creo el vector y y lo anexo a la base de datos x
+y<-rcauchy(n = 5000, location = -2, scale = 1)
+x<-cbind(x,y)
+
+```
+
+
+
+# III.
+
+  
+```{r}
+
+#Primero preparo un data frame con yt+1 en la misma fila que xt. (solo quito la primera observación y recorro los valores una fila)
+
+mylist<-y[-1]
+newelem <- 0
+y_2 <- c(mylist, newelem)
+x<-cbind(x,y_2)
+#Aimismo quito la ultima observación en t=5000 pues ya no tiene un y_t+1 con el cuál podaos relacionar
+x_clean<-x[-c(5000),] 
+
+
+#Segundo, calculo las regresiones cuantílicas para cada variable
+coefs_raw<-lapply(seq_len(ncol(x_clean)),function(i) {coef(rq(x_clean$y_2~x_clean[,i],tau=.2))})
+
+# Extraigo solamente los coeficientes de los objetos generados
+coefs <- data.frame(matrix(unlist(coefs_raw), nrow=length(coefs_raw), byrow=T))
+
+#Edito el data frame para que esté ordenado
+coefs<-coefs %>% mutate (Var=paste("x",1:102, sep = ""))
+colnames(coefs) <- paste(c("B0","B1","Var"))
+
+
+#nota, la variable x101 y x102 en realidad se refiere a la regresión de y_2 con y y consigo misma
+#Por ello el data frame final de este inciso es el siguiente
+
+respuesta_3<-coefs[-c(101:102),] 
+
+```
+
+
+# IV.
+
+
+```{r}
+#Primero preparo un data frame donde pueda encontrar para cada t, todas las xs y las bs.
+x_transpose <- as.data.frame(t(as.matrix(x_clean)))
+cross<-cbind(x_transpose,coefs)
+#Quitamos las variables extra de tal manera que podamos hacer un lapply limpio
+cross$Var <- NULL
+cross$B0 <- NULL
+cross<-cross[-c(101:102),] 
+
+#Segundo, calculo las regresiones para cada t
+coefs_raw_t<-lapply(seq_len(ncol(cross)),function(i) {coef(lm(cross[,i]~cross$B1))})
+
+# Extraigo solamente los coeficientes de los objetos generados
+coefs_t <- data.frame(matrix(unlist(coefs_raw_t), nrow=length(coefs_raw_t), byrow=T))
+
+#Edito el data frame para que esté ordenado
+coefs_t<-coefs_t %>% mutate (Var=paste("t",1:5000, sep = ""))
+colnames(coefs_t) <- paste(c("alpha","efe_1","T"))
+
+# Elimino la ultima fila que en realidad es la regresión de B1 con sigo mismo
+respuesta_4<-coefs_t[-c(5000),] 
+
+```
+
+# V.
+
+```{r}
+
+#Prepar una base de datos con las efes relacionadas con las ys
+cross_final<-cbind(coefs_t,y_2)
+cross_final<-cross_final[-c(5000),] 
+
+
+
+
+#Segundo, calculo las regresiones cuantílicas para cada variable
+final_reg_quant<- rq(y_2~efe_1, data = cross_final,tau=.2)
+final_reg_quant
+
+```
+
+# VI.
+
+La $f$ indica la relación de cada $x_t$ con cada $y_(t+1)$ ajustada a $x_t$.
+
+# VII.
+
+```{r}
+cross_final<-cross_final %>%
+  mutate( final_reg_quant = predict(final_reg_quant)) 
+
+plot_data<-(subset(cross_final, subset=(cross_final$y_2 <= quantile(cross_final$y_2 , 0.20))))
+```
+```{r}
+ q2<-quantile(cross_final$y_2 , 0.20)
+```
+
+```{r}
+
+ggplot(cross_final,aes(T,y_2,colour="Y real",shape=".", alpha=.01))+ geom_point() +geom_point(aes(T,final_reg_quant,colour="Regresión del cuantil .2", shape=".",alpha=.01))+  geom_hline(yintercept=q2)+ labs(title= "Cuantil .2 de Y(t+1)", y="Y(t+1)", x = "t")
+
+```
+
+# VIII.
+
+```{r}
+
+#Para hacer este ejercicio agrupo los pasos que realicé en una función.
+
+proceso <- function(muestra) {
+#Calculo las regresiones cuantílicas para cada variable
+coefs_raw<-lapply(seq_len(ncol(muestra)),function(i)          {coef(rq(muestra$y_2~muestra[,i],tau=.2))})
+
+coefs <- data.frame(matrix(unlist(coefs_raw), nrow=length(coefs_raw), byrow=T))
+#Extraigo los coeficientes
+coefs <- data.frame(matrix(unlist(coefs_raw), nrow=length(coefs_raw), byrow=T)) 
+#Edito el data frame para que esté ordenado
+coefs<-coefs %>% mutate (Var=paste("x",1:102, sep = ""))
+colnames(coefs) <- paste(c("B0","B1","Var"))
+
+#PARTE B
+# Preparo un data frame donde pueda encontrar para cada t, todas las xs y las bs.
+x_transpose <- as.data.frame(t(as.matrix(muestra)))
+cross<-cbind(x_transpose,coefs)
+#Quitamos las variables extra de tal manera que podamos hacer un lapply limpio
+cross$Var <- NULL
+cross$B0 <- NULL
+cross<-cross[-c(101:102),] 
+
+#Calculo las regresiones para cada t
+coefs_raw_t<-lapply(seq_len(ncol(cross)),function(i) {coef(lm(cross[,i]~cross$B1))})
+
+#Extraigo solamente los coeficientes de los objetos generados
+coefs_t <- data.frame(matrix(unlist(coefs_raw_t), nrow=length(coefs_raw_t), byrow=T))
+#Edito el data frame para que esté ordenado
+colnames(coefs_t) <- paste(c("alpha","efe_1"))
+#Elimino el último renglon que es la regresión de una variable consigo misma
+coefs_t <- coefs_t[-nrow(coefs_t),]
+
+#PARTE C
+#Prepar una base de datos con las efes relacionadas con las ys
+cross_final<-cbind(coefs_t,muestra$y_2)
+#Segundo, calculo las regresiones cuantílicas para cada variable
+final_reg_quant<- rq(muestra$y_2~efe_1, data = cross_final,tau=.2)
+
+   return(final_reg_quant)
+}
+
+```
+
+```{r}
+#Ahora simplemente divido la base de datos en dos muestras
+#Y aplico la función creada.
+
+seccion_a <- x_clean[1:4000,]
+
+```
+
+Para la base de datos completa:
+
+Para la submuestra con las primeros 4000 observaciones:
+```{r}
+coef(proceso(seccion_a))
+```
+Para la submuestra con las últimas 1000 (en realidad 999) observaciones:
+
+
+En cuanto a los MSE:
+
+```{r}
+#En primer lugar, creo una columna de valores predecidos
+seccion_a<-seccion_a %>%
+  mutate( proceso_a = predict(proceso(seccion_a))) 
+
+```
+
+MSE de la submuestra:
+```{r}
+MSE(seccion_a$proceso_a, seccion_a$y_2)
+```
+
+
+# IX.
+
+```{r}
+#Creo 1000 bases de datos correspondientes para cada ventana
+for (i in 0:999){
+ nam <- paste("D", i, sep = "")
+ assign(nam, x_clean[(1+i):(4000+i),])}
+
+
+```
+
+
+
+```{r}
+
+#En esta sección se realiza la estimación de ventana, sin embargo no pude ejecutar un lapply a una lista, por lo que lo hice de la siguiente manera (tal vez un poco ineficiente)
+a<-lapply(list(D0,D1,D2,D3,D4,D5,D6,D7,D8,D9,D10,D11,D12,D13,D14,D15,D16,D17,D18,D19,D20,D21,D22,D23,D24,D25,D26,D27,D28,D29,D30,D31,D32,D33,D34,D35,D36,D37,D38,D39,D40,D41,D42,D43,D44,D45,D46,D47,D48,D49,D50,D51,D52,D53,D54,D55,D56,D57,D58,D59,D60,D61,D62,D63,D64,D65,D66,D67,D68,D69,D70,D71,D72,D73,D74,D75,D76,D77,D78,D79,D80,D81,D82,D83,D84,D85,D86,D87,D88,D89,D90,D91,D92,D93,D94,D95,D96,D97,D98,D99),function(i) {coef(proceso(i))})
+
+b<-lapply(list(D100,D101,D102,D103,D104,D105,D106,D107,D108,D109,D110,D111,D112,D113,D114,D115,D116,D117,D118,D119,D120,D121,D122,D123,D124,D125,D126,D127,D128,D129,D130,D131,D132,D133,D134,D135,D136,D137,D138,D139,D140,D141,D142,D143,D144,D145,D146,D147,D148,D149,D150,D151,D152,D153,D154,D155,D156,D157,D158,D159,D160,D161,D162,D163,D164,D165,D166,D167,D168,D169,D170,D171,D172,D173,D174,D175,D176,D177,D178,D179,D180,D181,D182,D183,D184,D185,D186,D187,D188,D189,D190,D191,D192,D193,D194,D195,D196,D197,D198,D199,D200,D201,D202,D203,D204,D205,D206,D207,D208,D209,D210,D211,D212,D213,D214,D215,D216,D217,D218,D219,D220,D221,D222,D223,D224,D225,D226,D227,D228,D229,D230,D231,D232,D233,D234,D235,D236,D237,D238,D239,D240,D241,D242,D243,D244,D245,D246,D247,D248,D249,D250,D251,D252,D253,D254,D255,D256,D257,D258,D259,D260,D261,D262,D263,D264,D265,D266,D267,D268,D269,D270,D271,D272,D273,D274,D275,D276,D277,D278,D279,D280,D281,D282,D283,D284,D285,D286,D287,D288,D289,D290,D291,D292,D293,D294,D295,D296,D297,D298,D299),function(i) {coef(proceso(i))})
+
+c<-lapply(list(D300,D301,D302,D303,D304,D305,D306,D307,D308,D309,D310,D311,D312,D313,D314,D315,D316,D317,D318,D319,D320,D321,D322,D323,D324,D325,D326,D327,D328,D329,D330,D331,D332,D333,D334,D335,D336,D337,D338,D339,D340,D341,D342,D343,D344,D345,D346,D347,D348,D349,D350,D351,D352,D353,D354,D355,D356,D357,D358,D359,D360,D361,D362,D363,D364,D365,D366,D367,D368,D369,D370,D371,D372,D373,D374,D375,D376,D377,D378,D379,D380,D381,D382,D383,D384,D385,D386,D387,D388,D389,D390,D391,D392,D393,D394,D395,D396,D397,D398,D399,D400,D401,D402,D403,D404,D405,D406,D407,D408,D409,D410,D411,D412,D413,D414,D415,D416,D417,D418,D419,D420,D421,D422,D423,D424,D425,D426,D427,D428,D429,D430,D431,D432,D433,D434,D435,D436,D437,D438,D439,D440,D441,D442,D443,D444,D445,D446,D447,D448,D449,D450,D451,D452,D453,D454,D455,D456,D457,D458,D459,D460,D461,D462,D463,D464,D465,D466,D467,D468,D469,D470,D471,D472,D473,D474,D475,D476,D477,D478,D479,D480,D481,D482,D483,D484,D485,D486,D487,D488,D489,D490,D491,D492,D493,D494,D495,D496,D497,D498,D499,D500,D501,D502,D503,D504,D505,D506,D507,D508,D509,D510,D511,D512,D513,D514,D515,D516,D517,D518,D519,D520,D521,D522,D523,D524,D525,D526,D527,D528,D529,D530,D531,D532,D533,D534,D535,D536,D537,D538,D539,D540,D541,D542,D543,D544,D545,D546,D547,D548,D549,D550,D551,D552,D553,D554,D555,D556,D557,D558,D559,D560,D561,D562,D563,D564,D565,D566,D567,D568,D569,D570,D571,D572,D573,D574,D575,D576,D577,D578,D579,D580,D581,D582,D583,D584,D585,D586,D587,D588,D589,D590,D591,D592,D593,D594,D595,D596,D597,D598,D599,D600,D601,D602,D603,D604,D605,D606,D607,D608,D609,D610,D611,D612,D613,D614,D615,D616,D617,D618,D619,D620,D621,D622,D623,D624,D625,D626,D627,D628,D629,D630,D631,D632,D633,D634,D635,D636,D637,D638,D639,D640,D641,D642,D643,D644,D645,D646,D647,D648,D649,D650,D651,D652,D653,D654,D655,D656,D657,D658,D659,D660,D661,D662,D663,D664,D665,D666,D667,D668,D669,D670,D671,D672,D673,D674,D675,D676,D677,D678,D679,D680,D681,D682,D683,D684,D685,D686,D687,D688,D689,D690,D691,D692,D693,D694,D695,D696,D697,D698,D699,D700,D701,D702,D703,D704,D705,D706,D707,D708,D709,D710,D711,D712,D713,D714,D715,D716,D717,D718,D719,D720,D721,D722,D723,D724,D725,D726,D727,D728,D729,D730,D731,D732,D733,D734,D735,D736,D737,D738,D739,D740,D741,D742,D743,D744,D745,D746,D747,D748,D749,D750,D751,D752,D753,D754,D755,D756,D757,D758,D759,D760,D761,D762,D763,D764,D765,D766,D767,D768,D769,D770,D771,D772,D773,D774,D775,D776,D777,D778,D779,D780,D781,D782,D783,D784,D785,D786,D787,D788,D789,D790,D791,D792,D793,D794,D795,D796,D797,D798,D799,D800,D801,D802,D803,D804,D805,D806,D807,D808,D809,D810,D811,D812,D813,D814,D815,D816,D817,D818,D819,D820,D821,D822,D823,D824,D825,D826,D827,D828,D829,D830,D831,D832,D833,D834,D835,D836,D837,D838,D839,D840,D841,D842,D843,D844,D845,D846,D847,D848,D849,D850,D851,D852,D853,D854,D855,D856,D857,D858,D859,D860,D861,D862,D863,D864,D865,D866,D867,D868,D869,D870,D871,D872,D873,D874,D875,D876,D877,D878,D879,D880,D881,D882,D883,D884,D885,D886,D887,D888,D889,D890,D891,D892,D893,D894,D895,D896,D897,D898,D899,D900,D901,D902,D903,D904,D905,D906,D907,D908,D909,D910,D911,D912,D913,D914,D915,D916,D917,D918,D919,D920,D921,D922,D923,D924,D925,D926,D927,D928,D929,D930,D931,D932,D933,D934,D935,D936,D937,D938,D939,D940,D941,D942,D943,D944,D945,D946,D947,D948,D949,D950,D951,D952,D953,D954,D955,D956,D957,D958,D959,D960,D961,D962,D963,D964,D965,D966,D967,D968,D969,D970,D971,D972,D973,D974,D975,D976,D977,D978,D979,D980,D981,D982,D983,D984,D985,D986,D987,D988,D989,D990,D991,D992,D993,D994,D995,D996,D997,D998,D999),function(i) {coef(proceso(i))})
+
+```
+
+```{r}
+# Extraigo los coeficientes de cada regresión
+coefa <- data.frame(matrix(unlist(a), nrow=length(a), byrow=T))
+coefb <- data.frame(matrix(unlist(b), nrow=length(b), byrow=T))
+coefc <- data.frame(matrix(unlist(c), nrow=length(c), byrow=T))
+
+```
+
+```{r}
+#Anexo las efes de la base de datos para calcular la y predecida
+
+bindcoefs <- bind_rows(coefa, coefb, coefc)
+colnames(bindcoefs) <- paste(c("gamma_0","gamma_1"))
+append<-cross_final[4900:4999,]
+final_a<-cbind(append,bindcoefs)
+final_a<-final_a%>%
+          mutate(predicted=(gamma_0+gamma_1*efe_1))
+write.csv(final_a,"final_a.csv")
+```
+
+```{r}
+
+#Anexo las efes de la base de datos para calcular la y predecida
+final_a<-final_a%>%
+          mutate(predicted_error=((y_2-predicted)^2))
+
+# El MSE de esta predicción es:
+mean(final_a$predicted_error)
+
+
+```
+
+# X.
+
+```{r}
+ggplot(final_a,aes(T,final_reg_quant,colour="Predicción por fuera",shape=".", alpha=.01))+ geom_point() +geom_point(aes(T,predicted,colour="Predicción por dentro", shape=".",alpha=.01))+  geom_hline(yintercept=q2)+ labs(title= "Predicciones por dentro y fuera de la muestra", y="Y(t+1)", x = "t")
+
+```
+
+# XI.
+
+Para esta sección simplemente realizaremos un ejercicio similar: dividiremos la base de datos en dos partes, una con 4000 observaciones y una con mil observaciones. Nuestro objetivo es predecir las $y_{t+1}$ de los ultimos 1000 periodos (en realidad 999) periodos de tal manera que la ventana sea de 4000. Para eso realizaremos primero primero una regresion con la primer submuestra que luego utilizaremos para predecir las últimas 999 $y_{t+1}$ (análisis dentro de la muestra) para posteriormente realizar el análisis fuera de la muestra.
+
+
+```{r}
+#Estimación del modelo dentro de la base de datos:
+drop <- c("y","proceso_a")
+seccion_a_beta = seccion_a[,!(names(seccion_a) %in% drop)]
+linearmodel<-lm(y_2 ~ .,seccion_a_beta)
+seccion_b <- x_clean[4000:4999,]
+seccion_b_beta = seccion_b[,!(names(seccion_a) %in% drop)]
+pred_fuera<-predict(linearmodel,seccion_b_beta)
+
+
+
+```
+
+```{r}
+##Estimación del modelo dentro de la base de datos de fuera:
+ 
+drop_b <- c("y_2")
+ventana_beta = x_clean[,!(names(x_clean) %in% drop)]
+
+
+```
+
+```{r}
+#Para calcular las regresiones de ventana movil, aprovecho las 1000 bases de datos que ya creé en los incisios anteriores.
+
+d<-lapply(list(D0,D1,D2,D3,D4,D5,D6,D7,D8,D9,D10,D11,D12,D13,D14,D15,D16,D17,D18,D19,D20,D21,D22,D23,D24,D25,D26,D27,D28,D29,D30,D31,D32,D33,D34,D35,D36,D37,D38,D39,D40,D41,D42,D43,D44,D45,D46,D47,D48,D49,D50,D51,D52,D53,D54,D55,D56,D57,D58,D59,D60,D61,D62,D63,D64,D65,D66,D67,D68,D69,D70,D71,D72,D73,D74,D75,D76,D77,D78,D79,D80,D81,D82,D83,D84,D85,D86,D87,D88,D89,D90,D91,D92,D93,D94,D95,D96,D97,D98,D99,D100,D101,D102,D103,D104,D105,D106,D107,D108,D109,D110,D111,D112,D113,D114,D115,D116,D117,D118,D119,D120,D121,D122,D123,D124,D125,D126,D127,D128,D129,D130,D131,D132,D133,D134,D135,D136,D137,D138,D139,D140,D141,D142,D143,D144,D145,D146,D147,D148,D149,D150,D151,D152,D153,D154,D155,D156,D157,D158,D159,D160,D161,D162,D163,D164,D165,D166,D167,D168,D169,D170,D171,D172,D173,D174,D175,D176,D177,D178,D179,D180,D181,D182,D183,D184,D185,D186,D187,D188,D189,D190,D191,D192,D193,D194,D195,D196,D197,D198,D199,D200,D201,D202,D203,D204,D205,D206,D207,D208,D209,D210,D211,D212,D213,D214,D215,D216,D217,D218,D219,D220,D221,D222,D223,D224,D225,D226,D227,D228,D229,D230,D231,D232,D233,D234,D235,D236,D237,D238,D239,D240,D241,D242,D243,D244,D245,D246,D247,D248,D249,D250,D251,D252,D253,D254,D255,D256,D257,D258,D259,D260,D261,D262,D263,D264,D265,D266,D267,D268,D269,D270,D271,D272,D273,D274,D275,D276,D277,D278,D279,D280,D281,D282,D283,D284,D285,D286,D287,D288,D289,D290,D291,D292,D293,D294,D295,D296,D297,D298,D299,D300,D301,D302,D303,D304,D305,D306,D307,D308,D309,D310,D311,D312,D313,D314,D315,D316,D317,D318,D319,D320,D321,D322,D323,D324,D325,D326,D327,D328,D329,D330,D331,D332,D333,D334,D335,D336,D337,D338,D339,D340,D341,D342,D343,D344,D345,D346,D347,D348,D349,D350,D351,D352,D353,D354,D355,D356,D357,D358,D359,D360,D361,D362,D363,D364,D365,D366,D367,D368,D369,D370,D371,D372,D373,D374,D375,D376,D377,D378,D379,D380,D381,D382,D383,D384,D385,D386,D387,D388,D389,D390,D391,D392,D393,D394,D395,D396,D397,D398,D399,D400,D401,D402,D403,D404,D405,D406,D407,D408,D409,D410,D411,D412,D413,D414,D415,D416,D417,D418,D419,D420,D421,D422,D423,D424,D425,D426,D427,D428,D429,D430,D431,D432,D433,D434,D435,D436,D437,D438,D439,D440,D441,D442,D443,D444,D445,D446,D447,D448,D449,D450,D451,D452,D453,D454,D455,D456,D457,D458,D459,D460,D461,D462,D463,D464,D465,D466,D467,D468,D469,D470,D471,D472,D473,D474,D475,D476,D477,D478,D479,D480,D481,D482,D483,D484,D485,D486,D487,D488,D489,D490,D491,D492,D493,D494,D495,D496,D497,D498,D499),function(i) {coef(lm(y_2 ~ . -y,i))})
+
+
+```
+
+
+```{r}
+
+e<-lapply(list(D500,D501,D502,D503,D504,D505,D506,D507,D508,D509,D510,D511,D512,D513,D514,D515,D516,D517,D518,D519,D520,D521,D522,D523,D524,D525,D526,D527,D528,D529,D530,D531,D532,D533,D534,D535,D536,D537,D538,D539,D540,D541,D542,D543,D544,D545,D546,D547,D548,D549,D550,D551,D552,D553,D554,D555,D556,D557,D558,D559,D560,D561,D562,D563,D564,D565,D566,D567,D568,D569,D570,D571,D572,D573,D574,D575,D576,D577,D578,D579,D580,D581,D582,D583,D584,D585,D586,D587,D588,D589,D590,D591,D592,D593,D594,D595,D596,D597,D598,D599,D600,D601,D602,D603,D604,D605,D606,D607,D608,D609,D610,D611,D612,D613,D614,D615,D616,D617,D618,D619,D620,D621,D622,D623,D624,D625,D626,D627,D628,D629,D630,D631,D632,D633,D634,D635,D636,D637,D638,D639,D640,D641,D642,D643,D644,D645,D646,D647,D648,D649,D650,D651,D652,D653,D654,D655,D656,D657,D658,D659,D660,D661,D662,D663,D664,D665,D666,D667,D668,D669,D670,D671,D672,D673,D674,D675,D676,D677,D678,D679,D680,D681,D682,D683,D684,D685,D686,D687,D688,D689,D690,D691,D692,D693,D694,D695,D696,D697,D698,D699,D700,D701,D702,D703,D704,D705,D706,D707,D708,D709,D710,D711,D712,D713,D714,D715,D716,D717,D718,D719,D720,D721,D722,D723,D724,D725,D726,D727,D728,D729,D730,D731,D732,D733,D734,D735,D736,D737,D738,D739,D740,D741,D742,D743,D744,D745,D746,D747,D748,D749,D750,D751,D752,D753,D754,D755,D756,D757,D758,D759,D760,D761,D762,D763,D764,D765,D766,D767,D768,D769,D770,D771,D772,D773,D774,D775,D776,D777,D778,D779,D780,D781,D782,D783,D784,D785,D786,D787,D788,D789,D790,D791,D792,D793,D794,D795,D796,D797,D798,D799,D800,D801,D802,D803,D804,D805,D806,D807,D808,D809,D810,D811,D812,D813,D814,D815,D816,D817,D818,D819,D820,D821,D822,D823,D824,D825,D826,D827,D828,D829,D830,D831,D832,D833,D834,D835,D836,D837,D838,D839,D840,D841,D842,D843,D844,D845,D846,D847,D848,D849,D850,D851,D852,D853,D854,D855,D856,D857,D858,D859,D860,D861,D862,D863,D864,D865,D866,D867,D868,D869,D870,D871,D872,D873,D874,D875,D876,D877,D878,D879,D880,D881,D882,D883,D884,D885,D886,D887,D888,D889,D890,D891,D892,D893,D894,D895,D896,D897,D898,D899,D900,D901,D902,D903,D904,D905,D906,D907,D908,D909,D910,D911,D912,D913,D914,D915,D916,D917,D918,D919,D920,D921,D922,D923,D924,D925,D926,D927,D928,D929,D930,D931,D932,D933,D934,D935,D936,D937,D938,D939,D940,D941,D942,D943,D944,D945,D946,D947,D948,D949,D950,D951,D952,D953,D954,D955,D956,D957,D958,D959,D960,D961,D962,D963,D964,D965,D966,D967,D968,D969,D970,D971,D972,D973,D974,D975,D976,D977,D978,D979,D980,D981,D982,D983,D984,D985,D986,D987,D988,D989,D990,D991,D992,D993,D994,D995,D996,D997,D998,D999),function(i) {coef(lm(y_2 ~ . -y,i))})
+
+
+
+```
+
+```{r}
+#Ahora extraigo los coeficientes para continuar con las predicciones
+coefd <- data.frame(matrix(unlist(d), nrow=length(d), byrow=T))
+coefe <- data.frame(matrix(unlist(e), nrow=length(d), byrow=T))
+bindcoefs <- bind_rows(coefd, coefe)
+
+ventana_beta$y_2<-NULL
+
+
+```
+
+```{r}
+ventana_beta<-ventana_beta%>% mutate(B0=1)%>%
+  select(B0, everything())
+ventana_beta<-ventana_beta[4900:4999,]
+
+```
+
+
+```{r}
+#Finalmente realizo la predicción del modelo "fuera"
+predict_final<-data.frame(
+ Map(function(x,y) if(all(is.numeric(x),is.numeric(y))) x * y else x, ventana_beta, bindcoefs)
+)
+pred_dentro<-rowSums(predict_final)
+
+```
+
+
+```{r}
+
+comparacion<-as.data.frame(cbind(pred_fuera,pred_dentro,seccion_b$y_2))
+colnames(comparacion) <- paste(c("fuera","dentro","real"))
+
+```
+
+
+
+# XII.
+
+```{r}
+# Para resolver si cuál modelo mejor simplemente calculamos los MSE:
+
+comparacion<-comparacion%>%
+          mutate(error_fuera=((real-fuera)^2))%>%
+          mutate(error_dentro=((real-dentro)^2))
+
+# El MSE de esta predicción para el análisis fuera:
+mean(comparacion$error_fuera)
+# El MSE de esta predicción para el análisis dentro:
+mean(comparacion$error_dentro)
+
+#Comparado con el del modelo de factores
+mean(final_a$predicted_error)
+
+#El modelo lineal tiene un error medio más pequeño por lo que parece mejor.
+
+
+```
+
+# XIII.
+
+## A.
+
+Para esta sección se decidió imputar los valores faltantes en la base de datos con el promedio de cada variable.
+
+
+```{r}
+pib <- read.csv("data.csv")
+pib$t<-NULL
+
+mylist<-y[-1]
+newelem <- 0
+y_2 <- c(mylist, newelem)
+pib<-cbind(pib,y_2)
+pib$a<-NULL
+
+#editamos nuestra función de proceso para que contemple regresiones lineales
+#Para hacer este ejercicio agrupo los pasos que realice en una función.
+
+proceso_lineal <- function(muestra) {
+#Calculo las regresiones cuantílicas para cada variable
+coefs_raw<-lapply(seq_len(ncol(muestra)),function(i)          {coef(lm(muestra$y_2~muestra[,i]))})
+
+coefs <- data.frame(matrix(unlist(coefs_raw), nrow=length(coefs_raw), byrow=T))
+#Extraigo los coeficientes
+coefs <- data.frame(matrix(unlist(coefs_raw), nrow=length(coefs_raw), byrow=T)) 
+#Edito el data frame para que esté ordenado
+coefs<-coefs %>% mutate (Var=paste("x",1:9, sep = ""))
+colnames(coefs) <- paste(c("B0","B1","Var"))
+
+#PARTE B
+# Preparo un data frame donde pueda encontrar para cada t, todas las xs y las bs.
+x_transpose <- as.data.frame(t(as.matrix(muestra)))
+cross<-cbind(x_transpose,coefs)
+#Quitamos las variables extra de tal manera que podamos hacer un lapply limpio
+cross$Var <- NULL
+cross$B0 <- NULL
+
+#Calculo las regresiones para cada t
+coefs_raw_t<-lapply(seq_len(ncol(cross)),function(i) {coef(lm(cross[,i]~cross$B1))})
+
+#Extraigo solamente los coeficientes de los objetos generados
+coefs_t <- data.frame(matrix(unlist(coefs_raw_t), nrow=length(coefs_raw_t), byrow=T))
+#Edito el data frame para que esté ordenado
+colnames(coefs_t) <- paste(c("alpha","efe_1"))
+#Elimino el último renglon que es la regresión de una variable consigo misma
+coefs_t <- coefs_t[-nrow(coefs_t),]
+
+#PARTE C
+#Prepar una base de datos con las efes relacionadas con las ys
+cross_final<-cbind(coefs_t,muestra$y_2)
+#Segundo, calculo las regresiones cuantílicas para cada variable
+final_reg<- lm(muestra$y_2~efe_1, data = cross_final)
+
+   return(final_reg)
+}
+
+proceso_lineal(pib)
+
+```
+
+## B.
+```{r}
+ar_pib <- read.csv("data.csv")
+
+
+```
+
+```{r}
+arr <- ts(ar_pib, frequency=1)
+
+```
+
+```{r}
+plot.ts(ar_pib$a)
+```
+
+
+
+
+```{r}
+arimaModel_1=arima(ar_pib$a, order=c(0,1,2))
+arimaModel_1
+```
+
+## C.
+
+De acuerdo a las estadísticas de resumen de los modelos parece que la metodología de factores tiene un mejor valor explicativo derivado de un p value diminuto de menos del 0.0000000000000002.
+
+```{r}
+summary(proceso_lineal(pib))
+summary(arimaModel_1)
+
+
+```
+
+## D.
+

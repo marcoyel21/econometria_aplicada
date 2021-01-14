@@ -1,0 +1,158 @@
+---
+title: "Tarea 3"
+author: "Marco Antonio Ramos"
+date: "12/6/2020"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Ambiente de trabajo.
+
+```{r}
+library(readstata13)
+library(dplyr)
+library(knitr)
+library(fastDummies)
+library(nnet)
+library(mlogit)
+
+data<-read.dta13("Stove.dta")
+
+```
+
+
+# 1.
+```{r}
+data_1<- data %>% select(stove, income, age, num_people, region)
+kable(summary(data_1))
+```
+
+# 2. 
+
+Para este ejercicio, creo 4 dataframes y luego los junto.
+
+```{r}
+#Expando en dummies y luego colapso la base de datos
+data_2<- data%>%
+  select(stove,region)%>% 
+  dummy_cols("stove")%>% 
+  select(-stove)%>% 
+  group_by(region)%>%
+   summarise_each(funs(sum))%>%
+   mutate(total = rowSums(.[2:6]))
+
+#Divido cada valor entre el total para obtener el porcentaje
+for (i in 2:7) {
+  data_2[i]<-data_2[i]/data_2[7]
+}
+
+#Transpongo mis datos
+respuesta_2 <- as.data.frame(t(data_2[,-1]))
+colnames(respuesta_2) <- data_2$region
+
+kable(respuesta_2)
+```
+
+
+# 3. 
+Ahota estimo el modelo multinomial.^[Nota: se uso el comando multinom porque te permite hacer el modelo sin la necesidad de transformar tus datos. Asimismo, los comandos tradicionales para hacer tablas del modelo no pueden interpretar ni multinom ni mlogit de manera correta por lo que solo se puso el output a través de *summary*] 
+```{r}
+#Ahora la estufa hp es mi base
+model_3 <- multinom(factor(stove) ~ factor(region), data = data)
+model_3
+```
+
+Finalmente para "recuperar" el porcentaje simplemente calculo $\frac{e^{X_i'\beta_{j,i}}}{1+\sum_{l=1}^Je^{{X'_i\beta_{l.i}}}}$ donde j se refiere a las distintas opciones de nuestra variable objetivo(estufas) y l se refiere a cada estufa excepto la que use como base. En este sentido podría recrear la tabla haciendo el calculo para cada combinación. Por ejemplo, recreamos la probabilidad conidiconal de tener una estufa *gr* dado que estamos en la región *mountain*
+
+
+```{r}
+exp(0.07636369+0.8107438)/(1+exp(0.07636369+0.8107438)
+                           +exp(-0.05626617+2.1877087)+ exp(0.05356228+.0797629)
+                           + exp(0.04664417+0.4052078))
+
+
+
+```
+
+# 4^[Nota: los comandos tradicionales para hacer tablas del modelo no pueden interpretar objetos mlogit de manera correta por lo que solo se puso el output a través de *summary*.] 
+
+```{r}
+#En primer lugar, adecuó los datos en el formato requerido por mlogit
+wide_data<-mlogit.data(data, choice = "stove", shape = "wide", varying = 3:12, sep = "_")
+
+```
+
+
+```{r}
+model_4 <- mlogit(
+  factor(stove) ~  oc + ic | factor(region) + age + income  + num_people , wide_data)
+
+model_4
+```
+
+# 5.
+
+Para esta pregunta se usará una aproximación exacta
+
+```{r}
+#Primero imprimo las probabilidades calculadas para cada observación 
+#El comando predict ya me da la probabillidad final
+predicciones<-as.data.frame(predict(model_4,newdata=wide_data))
+
+#Ahora calculo las probabilidades calculadas para cada observacion pero aumentando 
+#en dos individuos la variable num_people
+#Para esto tengo que volver a transformar la base de datos para que sea
+#acorde a mlogit.
+data_5<-data %>% mutate (num_people=num_people+2)
+wide_data_5<-mlogit.data(data_5, choice = "stove", shape = "wide", varying = 3:12, sep = "_")
+predicciones_5<-as.data.frame(predict(model_4,newdata=wide_data_5))
+compare_5<-as.data.frame(cbind(predicciones$er,predicciones_5$er))
+names(compare_5)[1] <- "original"
+names(compare_5)[2] <- "modificado"
+
+#Finalmente calculo la diferencia y lo promedio
+compare_5<-compare_5%>% mutate(dif=modificado-original)
+sum(compare_5$dif)/900
+
+```
+El efecto parcial promedio (calculado mediante una estimación exacta) es de 0.004032669. Esto quiere decir que ante un aumento en dos personas en el número de habitants del hogar, la probabilidad de tener una estufa er aumenta en .4 puntos porcentuales.
+
+
+# 6.
+
+Para calcular la bondad del modelo simplemente hay que comparar cuantas deciciones logra explicar de manera correcta vs en cuantas se equivoca.
+
+Para realizar la predicción simplemente le asigno a mi predicción el valor de la estufa con la mayor probabilidad dado las Xs.
+
+```{r}
+#Primero imprimo las probabilidades calculadas para cada observación
+predicciones<-as.data.frame(predict(model_4,newdata=wide_data))
+
+#Segundo, asumo que la estufa con la mayor probabilidad es la predicción
+pred<-as.data.frame(colnames(predicciones)[max.col(predicciones, ties.method = "first")])
+
+#Junto la predicción y el valor real
+compare<-cbind(pred,data$stove)
+
+```
+
+```{r}
+#Finalmente, cuento los casos de predicción exitosa
+
+#Antes de eso manipulo debo asignarle el formato adecuado a mis datos.
+names(compare)[1] <- "pred"
+names(compare)[2] <- "real"
+compare$pred<-as.character(compare$pred)
+compare$real<-as.character(compare$real)
+
+compare<-compare%>% 
+         mutate(exito=ifelse(compare$pred==compare$real,1,0))
+
+sum(compare$exito)/900
+```
+
+El modelo predijo exitosamente el 63% de las observaciones.

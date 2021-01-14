@@ -1,0 +1,304 @@
+--------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  /Users/marcoyel21/Desktop/parcial_1/142244_MARCOANTONIORAMOSJUAREZ_
+> S2_Parcial.log
+  log type:  text
+ opened on:  15 Sep 2020, 19:52:19
+
+. 
+. /*=================================================================
+> 
+> EXÁMEN PRIMER PARCIAL DE LA MATERIA ECONOMETRÍA APLCIADA - CLASE PRÁCTIA"
+> 
+> © Marco Antonio Ramos Juárez, 2020
+> ==================================================================*/
+. 
+. /* ++++++++++++++++++++++++++++++++++++++++++
+>                         - SET UP ENVIRONMENT
+> ++++++++++++++++++++++++++++++++++++++++++ */
+. 
+. * Limpiamos el ambiente
+. 
+. clear all
+
+. 
+. * Set working directory to locate data
+. 
+. cd "/Users/marcoyel21/Desktop/parcial_1"
+/Users/marcoyel21/Desktop/parcial_1
+
+. 
+. * Invocamos a base de datos 
+. 
+. use auto
+(1978 Automobile Data)
+
+. 
+. /* ++++++++++++++++++++++++++++++++++++++++++
+>                         I - Descripción de bases de datos 
+>                             y regresión
+> ++++++++++++++++++++++++++++++++++++++++++ */
+. 
+. * a.  
+. bysort foreign: summarize mpg weight
+
+--------------------------------------------------------------------------------
+-> foreign = Domestic
+
+    Variable |        Obs        Mean    Std. Dev.       Min        Max
+-------------+---------------------------------------------------------
+         mpg |         52    19.82692    4.743297         12         34
+      weight |         52    3317.115    695.3637       1800       4840
+
+--------------------------------------------------------------------------------
+-> foreign = Foreign
+
+    Variable |        Obs        Mean    Std. Dev.       Min        Max
+-------------+---------------------------------------------------------
+         mpg |         22    24.77273    6.611187         14         41
+      weight |         22    2315.909    433.0035       1760       3420
+
+
+. 
+. *b.
+. *En primer lugar, los autos extranjeros en promedio tienen un mejor desempeño 
+> mpg, aunque por tan solo casi 5 mpg y con una varianza mayor a la de los autom
+> obiles domésticos ; en segundo lugar, los automobiles domesticos son en promed
+> io más pesado y con una varianza mayor, con una diferencia en medias de casi 1
+> 000 kg. Sin embargo hay que notar el tamaño de los grupos: mientras que existe
+> n 52 tipos de automóbil domésticos, extranjeros tan solo 22.
+. 
+. *c. 
+. regress mpg weight foreign
+
+      Source |       SS           df       MS      Number of obs   =        74
+-------------+----------------------------------   F(2, 71)        =     69.75
+       Model |   1619.2877         2  809.643849   Prob > F        =    0.0000
+    Residual |  824.171761        71   11.608053   R-squared       =    0.6627
+-------------+----------------------------------   Adj R-squared   =    0.6532
+       Total |  2443.45946        73  33.4720474   Root MSE        =    3.4071
+
+------------------------------------------------------------------------------
+         mpg |      Coef.   Std. Err.      t    P>|t|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+      weight |  -.0065879   .0006371   -10.34   0.000    -.0078583   -.0053175
+     foreign |  -1.650029   1.075994    -1.53   0.130      -3.7955    .4954422
+       _cons |    41.6797   2.165547    19.25   0.000     37.36172    45.99768
+------------------------------------------------------------------------------
+
+. 
+. *d).
+. * El coeficiente de la variable dummy foreign es de -1.65 lo que en un princip
+> io indicaría un efecto negatico en mpg, sin embargo notamos que el estadístico
+>  t tiene un valor menor a dos y con un pvalue de .130 lo que nos indica que no
+>  podemos rechazar la hipotesis nula que el parámetro sea igual a cero de maner
+> a de manera estadísticamente significante.
+. 
+. /* ++++++++++++++++++++++++++++++++++++++++++
+>                         II - Regresión y valores generados
+> ++++++++++++++++++++++++++++++++++++++++++ */
+. 
+. * a. 
+. regres mpg price weight 
+
+      Source |       SS           df       MS      Number of obs   =        74
+-------------+----------------------------------   F(2, 71)        =     66.85
+       Model |  1595.93249         2  797.966246   Prob > F        =    0.0000
+    Residual |  847.526967        71  11.9369995   R-squared       =    0.6531
+-------------+----------------------------------   Adj R-squared   =    0.6434
+       Total |  2443.45946        73  33.4720474   Root MSE        =     3.455
+
+------------------------------------------------------------------------------
+         mpg |      Coef.   Std. Err.      t    P>|t|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+       price |  -.0000935   .0001627    -0.57   0.567     -.000418    .0002309
+      weight |  -.0058175   .0006175    -9.42   0.000    -.0070489   -.0045862
+       _cons |   39.43966   1.621563    24.32   0.000     36.20635    42.67296
+------------------------------------------------------------------------------
+
+. 
+. * b. Aunque ya existe un escalar de r^2 ajustada calculada, podemos calcularlo
+>  "manual" y luego asegurarnos que el cálculo sea correcto.
+. 
+.  display e(r2)-(1- e(r2))*( e(df_m))/e(df_r)
+.64337408
+
+.  display e(r2_a)
+.64337408
+
+.  
+. * c.
+. 
+. 
+. * d. 
+. scalar tweight = _b[weight]/_se[weight]
+
+. display tweight
+-9.4206417
+
+. 
+. *d. 
+. * No tenemos evidencia para sostener que el parámetro debería ser 0. El estadí
+> stico t tiene un valor por afuera de los valores críticos definidos para la di
+> stribución t con n-k grados de libertad con más del 99% de confianza.
+. display 2-ttail(e(df_r), tweight)
+1
+
+. 
+. /* ++++++++++++++++++++++++++++++++++++++++++
+>                         III - Bucles
+> ++++++++++++++++++++++++++++++++++++++++++ */
+. 
+. *a. 
+. 
+. generate total = 0
+
+. 
+. foreach v of varlist headroom length {
+  2. 
+. replace total = total+`v'
+  3. 
+. }
+(74 real changes made)
+(74 real changes made)
+
+. 
+. display total
+188.5
+
+. 
+. sum total
+
+    Variable |        Obs        Mean    Std. Dev.       Min        Max
+-------------+---------------------------------------------------------
+       total |         74    190.9257    22.71468        145      236.5
+
+. 
+. *b.
+. *De la función summarie puedo concluir que realicé la variable total de manera
+>  exitosa sin embargo lo compruebo sumanod las medias directamente.
+. 
+. summarize total headroom length
+
+    Variable |        Obs        Mean    Std. Dev.       Min        Max
+-------------+---------------------------------------------------------
+       total |         74    190.9257    22.71468        145      236.5
+    headroom |         74    2.993243    .8459948        1.5          5
+      length |         74    187.9324    22.26634        142        233
+
+. 
+. summarize total, meanonly
+
+. scalar tmean = r(mean)
+
+. summarize headroom, meanonly
+
+. scalar hmean = r(mean)
+
+. summarize length, meanonly
+
+. scalar lmean = r(mean)
+
+. scalar suma = hmean + lmean
+
+. scalar diff = tmean-suma
+
+. display diff
+0
+
+. 
+. /* ++++++++++++++++++++++++++++++++++++++++++
+>                         IV- Variables Aleatorias
+> ++++++++++++++++++++++++++++++++++++++++++ */
+. 
+. *a. 
+. set seed 12345
+
+. set obs 100
+number of observations (_N) was 74, now 100
+
+. gen x1 = runiform()
+
+. gen x2 = runiform()
+
+. 
+. *b. 
+. summarize x1 x2
+
+    Variable |        Obs        Mean    Std. Dev.       Min        Max
+-------------+---------------------------------------------------------
+          x1 |        100    .4889166    .3060636   .0034476   .9978225
+          x2 |        100    .5307009    .2852901   .0078375   .9967266
+
+. 
+. *Podemos realizar 4 pruebas de hipotesis
+. ttest x1==.5
+
+One-sample t test
+------------------------------------------------------------------------------
+Variable |     Obs        Mean    Std. Err.   Std. Dev.   [95% Conf. Interval]
+---------+--------------------------------------------------------------------
+      x1 |     100    .4889166    .0306064    .3060636    .4281869    .5496463
+------------------------------------------------------------------------------
+    mean = mean(x1)                                               t =  -0.3621
+Ho: mean = .5                                    degrees of freedom =       99
+
+    Ha: mean < .5               Ha: mean != .5                 Ha: mean > .5
+ Pr(T < t) = 0.3590         Pr(|T| > |t|) = 0.7180          Pr(T > t) = 0.6410
+
+. sdtest x1== .288675
+
+One-sample test of variance
+------------------------------------------------------------------------------
+Variable |     Obs        Mean    Std. Err.   Std. Dev.   [95% Conf. Interval]
+---------+--------------------------------------------------------------------
+      x1 |     100    .4889166    .0306064    .3060636    .4281869    .5496463
+------------------------------------------------------------------------------
+    sd = sd(x1)                                            c = chi2 = 111.2859
+Ho: sd = .28868                                  degrees of freedom =       99
+
+   Ha: sd < .28868             Ha: sd != .28868               Ha: sd > .28868
+  Pr(C < c) = 0.8123         2*Pr(C > c) = 0.3754           Pr(C > c) = 0.1877
+
+. ttest x2==.5
+
+One-sample t test
+------------------------------------------------------------------------------
+Variable |     Obs        Mean    Std. Err.   Std. Dev.   [95% Conf. Interval]
+---------+--------------------------------------------------------------------
+      x2 |     100    .5307009     .028529    .2852901    .4740932    .5873087
+------------------------------------------------------------------------------
+    mean = mean(x2)                                               t =   1.0761
+Ho: mean = .5                                    degrees of freedom =       99
+
+    Ha: mean < .5               Ha: mean != .5                 Ha: mean > .5
+ Pr(T < t) = 0.8578         Pr(|T| > |t|) = 0.2845          Pr(T > t) = 0.1422
+
+. sdtest x2== .288675
+
+One-sample test of variance
+------------------------------------------------------------------------------
+Variable |     Obs        Mean    Std. Err.   Std. Dev.   [95% Conf. Interval]
+---------+--------------------------------------------------------------------
+      x2 |     100    .5307009     .028529    .2852901    .4740932    .5873087
+------------------------------------------------------------------------------
+    sd = sd(x2)                                            c = chi2 =  96.6919
+Ho: sd = .28868                                  degrees of freedom =       99
+
+   Ha: sd < .28868             Ha: sd != .28868               Ha: sd > .28868
+  Pr(C < c) = 0.4531         2*Pr(C < c) = 0.9062           Pr(C > c) = 0.5469
+
+. 
+. *Ambas medias se encuentran dentro del intervalo de confianza al 95% sugerido 
+> por el test y en las 4 pruebas se obtuvieron valores p mayores a .28 (incluso 
+> uno de .7) lo que sugiere que la probabilidad de cometer error de tipo I es mu
+> y alta.  En este sentido,  la conclusión se mantiene para el conjunto de datos
+>  creados.
+. 
+. log close _all
+      name:  <unnamed>
+       log:  /Users/marcoyel21/Desktop/parcial_1/142244_MARCOANTONIORAMOSJUAREZ_
+> S2_Parcial.log
+  log type:  text
+ closed on:  15 Sep 2020, 19:52:19
+--------------------------------------------------------------------------------
