@@ -1,0 +1,628 @@
+---
+output:
+  pdf_document:
+  geometry: margin=1in
+fontsize: 11pt
+header-includes :
+  \usepackage{geometry}
+  \usepackage{graphicx}
+  \usepackage{float}
+  \floatplacement{figure}{H}
+  \tolerance=1
+  \hyphenpenalty=10000
+  \hbadness=10000
+  \linespread{1.2}
+  \usepackage[justification=centering, font=bf, labelsep=period, skip=5pt]{caption}
+  \usepackage{titling}
+  \usepackage{babel}
+  \usepackage{fancyhdr}
+  \pagestyle{fancy}
+  \fancyhead[L]{Maestría en Economía Aplicada}
+  \fancyhead[R]{ITAM}
+
+---
+\begin{titlepage}
+\begin{center}
+
+\textsc{\Large Instituto Tecnológico Autónomo de México}\\[2em]
+
+\textbf{\LARGE Econometría Aplicada}\\[2em]
+
+
+\textsc{\LARGE }\\[1em]
+
+
+\textsc{\LARGE Tarea 1 }\\[1em]
+\textsc{\large }\\[1em]
+
+\textsc{\large }\\[1em]
+\textsc{\LARGE }\\[1em]
+\textsc{\LARGE }\\[1em]
+
+\textsc{\large }\\[1em]
+\textsc{\LARGE }\\[1em]
+
+\textsc{\LARGE Prof. Arturo Aguilar Esteva}\\[1em]
+
+\textsc{\LARGE }\\[1em]
+\textsc{\LARGE }\\[1em]
+
+
+\textsc{\LARGE Marco Antonio Ramos Juárez}\\[1em]
+
+\textsc{\large 142244}\\[1em]
+
+\end{center}
+
+\vspace*{\fill}
+\textsc{Ciudad de México \hspace*{\fill} 2021}
+
+\end{titlepage}
+
+
+\newpage
+
+
+\tableofcontents
+
+\newpage
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = F, fig.pos = 'h', results = 'asis',tidy.opts=list(width.cutoff=60),tidy=TRUE)
+```
+
+
+
+# Ambiente de trabajo
+
+
+```{r,message=FALSE }
+# Cargo las librerías
+library(readstata13)
+library(RCT)
+library(sandwich)
+library(EnvStats)
+library(tidyr)
+library(dplyr)
+library(kableExtra)
+library(stargazer)
+library(margins)
+library(ggplot2)
+options(scipen=999)
+
+# Carga la base de datos
+data<-read.dta13("names.dta")
+
+```
+
+# 1.
+
+## ¿Por  qué  era  importante  para  los  autores  aleatorizar  los  nombres?   Es  decir,  ¿porqué  los  investigadores  no  recopilaron  información  de  postulantes  verdaderos  a  los trabajos  y  codificaron  si  los  nombres  de  dichas  aplicaciones  están  más  asociadosa  afroamericanos  o  blancos?  
+
+Porque *a priori* puede que los nombres de personas reales tengan alguna relación con las variables de interés, como la calidad de los CVs, las aptitudes, la educación, la experiencia, etc. De esta manera no se estaría evaluando el impacto del nombre per se si no la relación entre toda la combinación de variables y el outcome. 
+
+Al construir observaciones de manera sintética, los investigadores se están asegurando que el impacto que van a analizar es meramente el de los nombres, controlando por cualquier otro posible sesgo.
+
+## ¿Qué  sesgo  (positivo  o  negativo)  crees  que  hubiera resultado de seguir esta estrategia?
+
+Recordemos que el efecto promeido observado se descompone de la siguiente manera:
+
+$$D= E[Y_i^T-Y^C_i|T]+(E[Y_i^C|T]-E[Y_i^C|C])$$
+$$D= RealEffect+ SelectionBias$$
+De haber seguido la otra estrategia, muy probablemente $E[Y_i^C|T]<E[Y_i^C|C]$, es decir el outcome seguiría siendo más favorable para los nombres blancos en el escenario hipotético donde los blancos fueran negros. El signo del sesgo es el mismo que el signo del efecto real: ambos son negativos. El sesgo estaría inflando el efecto promedio observado.
+
+# 2.
+
+
+## Utiliza la base de datos para dar evidencia que la asignación de nombres parece habersido aleatoria.  
+
+
+```{r}
+# Para este inciso debemos crear algunas tablas de balance.
+# Sin embargo, debemos hacer una pequeña limpieza previa.
+# Una para información de cada supuesto individuo, otra para información del cv y otra para información de las empresas.
+# Para esto necestiamos que las variables que necesitamos sean númericas, lo cual no es problema excepto por una columna, "expminreq" a la cual le haremos una pequeña limpieza.
+
+summary(factor(data$expminreq))
+
+# Como podemos observar cuenta con 2746 valores nulos (que aparecen con un espacio en blanco " ") y 1064 valores con la categoría "some". Esto nos puede dar problemas a la hora de hacer las tablas de balance: tenemos dos alternativas A)ignorar la variable o B) intentar imputar los valores de some con el promedio de los valores numéricos e imputar con un 0 los valores nulos (asumiendo que su no respuesta indica que no se necesitaba esperiencia mínima)
+
+#promedio
+(0*4+8*.5+1*142+10*18+2*356+3*331+4*8+5*163+6*8+7*12+8*10)/
+  (4+8+142+18+356+331+8+163+8+12+10)
+
+#El promedio de experiencia que soliticaban las vacantes que si respondieron ese inciso fue de 2.91 y la moda de 2 (seguido de 3). En este sentido, creo que el promedio es un buen indicador de "some" por lo que imputamos el valor.
+
+data$expminreq[data$expminreq==" "] <- NA
+data$expminreq[is.na(data$expminreq)] <- 0
+data$expminreq[data$expminreq=="some"] <- 2.91
+data$expminreq<-as.numeric(data$expminreq)
+```
+
+
+
+```{r, results='asis', fig.pos='h'}
+# Siguiendo con el inciso,  el primer paso es dividir la base de datos en 3 bloques con solo las variables que necesitamos
+
+# A) información personal
+personal_info<-data%>% 
+  select (black,female,high,chicago) #Aquí omitimos callback pues esa es información del outcome y firstname, pues el treatment es black
+
+# B) información del cv
+cv_info<-data%>% 
+  select (ofjobs,yearsexp,honors,volunteer,military,
+          empholes,workinschool,email,computerskills,
+          specialskills,college,black)
+# C) información del empleador
+employer_info<-data%>% 
+  select (expminreq, eoe,manager,supervisor,secretary, 
+          offsupport,salesrep, retailsales,req,expreq, 
+          comreq, educreq, compreq,orgreq, manuf,transcom, 
+          bankreal, trade,busservice,othservice,missind,
+          black)
+
+# Creo las tablas de balance
+bt_personal<-balance_table(personal_info,treatment = "black")
+bt_cv<-balance_table(cv_info,treatment = "black")
+bt_employer<-balance_table(employer_info,treatment = "black")
+
+# Imprimo las tablas finales
+kable(as.data.frame(bt_personal),booktabs=T,caption = "Datos personales",longtable=T)%>%
+kable_styling(position = "center",latex_options = "repeat_header")
+
+kable(as.data.frame(bt_cv),booktabs=T,caption = "Datos del CV",longtable=T)%>%
+kable_styling(position = "center",latex_options = "repeat_header")
+
+kable(as.data.frame(bt_employer),booktabs=T,caption = "Datos del empleador",longtable=T)%>%
+kable_styling(position = "center",latex_options = "repeat_header")
+
+# Caber notar que la columna que limpiamos, expminreq, resulto balanceada si imputabamos la moda, la media, sin tratar los NAs y tratando los NAs,
+
+```
+
+## Deberíass incluir la(s) tabla(s) relevante(s) que te haya(n) permitido llegar a esta conclusión.
+
+En resumen, solamente en una variable de las 3 tablas anteriores encontramos una difrerencia de medias estadísticamente significativa (computerskills). Sin embargo, las medias son muy parecidas (.809 para el control y .832 para el tratamiento). Es decir que esta mínimamente favoreciendo a los nombres negros. Fuera de ese detalle, todo lo demás parece indicar que la asignación de nombres fue aleatoria. 
+
+# 3.
+
+## Asumiendo que la distribución de nombres fue aleatoria, da evidencia de si existe discriminación racial en elcallback utilizando: (i)un estimador de Neyman, (ii) una estimación de OLS con errores heterocedásticos,(iii) una estimación de OLS agregando controles (ustedes deberán decidir cuáles) y(iv) un probit sin controles.
+
++ **Estimador de Neyman**
+
+Recordemos:
+
+$$\tau=\overline{y}^T_i-\overline{y}^C_i$$
+$$Var[\tau]=\frac{S^2_T}{N_T}+\frac{S^2_C}{N_C}$$
+
+```{r}
+#para calcular el estimador de Neyman simplemente restamos las dos medias condicionales
+
+# Calculo del estimador de Neyman
+mean_control<- mean((data %>% 
+  filter(black == 0))$call_back)
+
+mean_treatment<- mean((data %>% 
+  filter(black == 1))$call_back)
+
+# Estimador de Neyman:
+(neyman_t<-mean_treatment-mean_control)
+
+# Calculo de la Varianza
+var_control<- var((data %>% 
+  filter(black == 0))$call_back)
+
+var_treatment<- var((data %>% 
+  filter(black == 1))$call_back)
+
+n_control<-length((data %>% 
+  filter(black == 1))$call_back)
+
+n_treatment<-length((data %>% 
+  filter(black == 1))$call_back)
+
+
+# Varianza del estimador de Neyman
+(var_neyman_t<-var_treatment/n_treatment+var_control/n_control)
+
+```
+
++ **OLS con errores heterocedásticos**
+
+```{r}
+#para calcular el modelo con errores heterocedásticos primero calculo el modelo sin errores heterocedásticos y luego calculo los errores con el paquete sandwich
+
+# con errores homocedásticos
+(ols_con_eh<-lm(call_back ~ black,data))
+
+# con corrección heterocedástica
+ols_con_eh %>% 
+    vcovHC() %>% 
+    diag() %>% 
+    sqrt()
+
+```
+
++ **OLS con controles**
+
+Agregamos las 3 variables con las diferencias más grandes, con miras a que tal vez estas variables puedan cambiar el coeficiente de black.
+
+```{r}
+ols_con_controles<-lm(call_back ~ black+computerskills+female+military,data)
+stargazer(ols_con_controles,type="latex",summary=FALSE,header = F)
+```
+
+Lo que notamos esque ni aún así cambiamos el coeficiente de black, debido a la aleatorización exitosa de los investigadores.
+
++ **Probit sin controles**
+
+```{r}
+# con errores homocedásticos
+probit<-glm(call_back ~ black, 
+            family = binomial(link = "probit"),
+            data)
+stargazer(probit,type="latex",summary=FALSE, header = F)
+
+```
+
+
+## Indica la prueba de hipótesis que estarás contrastando en cada estimación.
+
++ **Estimador de Neyman**
+
+Para este caso debo usar la prueba de Neyman
+
+$H_n: \mu_c-\mu_t=0$
+$H_a: \mu_c-\mu_t \neq0$
+
++ **OLS con errores heterocedásticos**
+
+Para este caso puedo realizar una prueba de significancia individual sobre el coeficiente de black que resuelvo con el estadístico t.
+
+$H_n: \beta_{black}=0$
+$H_a:\beta_{black} \neq0$
+
++ **OLS con controles**
+Para este caso puedo realizar una prueba de significancia individual el coeficiente de black  que resuelvo con el estadístico t.
+
+$H_n: \beta_{black}=0$
+$H_a:\beta_{black} \neq0$
+
+
++ **Probit sin controles**
+
+Para el probit, podemos hacer una prueba de hipótesis contrastando H0 que el Efecto Marginal Promedio de la variable black es cero frente a H1 de que no es cero.
+
+$H_n: AME(black)=0$
+$H_a:AME(black) \neq0$
+
+```{r}
+kable(summary(margins(probit, variables ="black")))
+```
+
+## Reporta los resultados de tus 4 estimaciones con una tabla con el formato usual que empleamos el semestre pasado. Asegúrate que los resultados reportados en cada columna sean comparables.  Es decir, deberán estar reportados en las mismas unidades para poder hacer unacomparación a lo largo de las columnas.
+
+                              
+```{r, results='asis'}
+# Para esta tarea, decidí mejor hacer manualmente mi tabla
+# Para ello aprovecho que ya estime todos los modelos y calculé los margentes para el probit:
+
+# Primero elaboro mis vectores individuales para hacer mi tabla
+constant<-c("","0.097***"," 0.105***","")
+s_dev_constant<-c("","(0.006)","(0.011)","")
+estimates<-c("-0.032***","-0.032***","-0.032***","-0.032***")
+s_dev<-c("(0.008)","(0.008)","(0.008)","(0.008)")
+other_1<-c("","","-0.021**","")
+s_dev_other_1<-c("","","(0.011)","")
+other_2<-c("","","0.012","")
+s_dev_other_2<-c("","","(0.010)","")
+other_3<-c("","","0.013","")
+s_dev_other_3<-c("","","(0.013)","")
+
+# Elaboro mi data frame
+modelos_output<-t(data.frame(constant,s_dev_constant,estimates,s_dev,other_1,s_dev_other_1,other_2,s_dev_other_2,other_3,s_dev_other_3))
+
+# Cambio el nombre de las filas para poder usar latex
+
+rownames(modelos_output)<-c("Constante","",
+                            "$\\mu^T_Y-\\mu^C_Y \\approx \\beta^{black}$","",
+                            "$\\beta^{Computer}$","",
+                            "$\\beta^{Mujer}$","",
+                            "$\\beta^{Militar}$","")
+
+# Realizó mi tabla final:
+
+kable(modelos_output, col.names = c("Neyman","Robust OLS","Controled OLS","AME Probit"), longtable=T, booktabs=T, caption = "Comparación de modelos",escape = F)%>%
+  
+  kable_styling(position = "center",latex_options = "repeat_header")%>%
+  
+  add_footnote( c("Para hacer el probit comparable solamente se muestra el Efecto Marginal Promedio con respecto a la variable Black"), notation = "symbol")
+
+
+```
+
+## Elige una de las columnas para llevar a cabo una interpretación del coeficienterelevante que estas estimando.  Da evidencia como parte de esta interpretación la importancia del efecto.  Es decir, ¿consideras que es un efecto pequeño o grande?
+
+Tomo el coeficiente de las dos regresiones con OLS. Ceteris paribus, el solo hecho de que el nombre esté asociado a ser negro reduce la probabilidad de recibir una llamada de regreso por parte del empleador en 3.2%. Lo interesante es que el coeficiente fue virtualmente el mismo con y sin controles debido a la exitosa aleatorización de los investigadores. Asimismo, en ambos modelos resulto ser significativo a más del 99%.
+
+Aunque a simple vista parece una diferencia diminuta, debemos considerar que la probabilidad media de recibir una llamada de regreso del grupo de control (nombres no negros) fue del 9.6% y del grupo de tratamiento del 6.4%. En este sentido, el hecho que la diferencia de medias haya sido de 3.2 quiere decir que el efecto de la discrimación es del 50% con respecto a la probabilidad de una persona afroamericana de recibir la llamada. Desde esta perspectiva si es una situación grave pues esta cifra es teniendo todo lo demás constante (habilidades computacionales, educación, sexo, etc.)
+
+# 4. 
+
+## Utiliza un Fischer Exact Testpara evluar la hipótesis.  Reporta el valor p y la conclusión a la que llegas.
+
+$H_n: \mu_c-\mu_t=0.1$
+$H_a: \mu_c-\mu_t \neq.1$
+
+
+```{r}
+# para este inciiso usaremos el comado twoSamplePermutationTestLocation
+# para usar este comando necestiamos crear vectores con las variables de interés
+vector_control<-data[data$black== 0,]$call_back
+vector_treatment<-data[data$black== 1,]$call_back
+fet<-twoSamplePermutationTestLocation(
+  vector_control,vector_treatment,
+  alternative="two.sided", 
+  mu1.minus.mu2 = .01, 
+  seed = 123)
+
+# imprimo los inputs del comando
+fet$estimate 
+
+# imprimo la hipótesis interpretada por el comando
+fet$null.value 
+
+# imprimo el valor p
+fet$p.value 
+
+```
+
+Con más del 99% de significancia, rechazo la hipótesis nula, no existe evidencia para sostener que la diferencia es del 1%. 
+
+# 5.
+
+## Imagina  que  estratificas  por:  (i)  sexo  del  aplicante  (hombre  o  mujer),  (ii)  ciudad donde se postula al trabajo (Chicago o Boston) e (iii) industria de la empresa quepublico  el  puesto  (ver  el  pdf  que  indica  las  industrias  disponibles)  [Ejemplo:   unposible estrato sería hombres aplicantes a trabajos en Chicago en la industria manufacturera]. 
+
+```{r}
+#para calcular el estimador de Neyman simplemente restamos las dos medias condicionadas a cada grupo
+
+# calculo la tabla para el grupo de control
+strat_control<-data %>% 
+  filter(black==0) %>%
+  select(call_back,female,chicago,manuf, transcom, bankreal, trade, busservice, othservice, missind) %>% 
+  group_by(female,chicago,manuf, transcom, bankreal, trade, busservice, othservice, missind) %>% 
+  summarise(efecto_control = mean(call_back), obs_control = n(),var_c=var(call_back))
+
+# calculo la tabla para el grupo de tratamiento
+strat_treatment<-data %>% 
+  filter(black==1) %>%
+  select(call_back,female,chicago,manuf, transcom, bankreal, trade, busservice, othservice, missind) %>% 
+  group_by(female,chicago,manuf, transcom, bankreal, trade, busservice, othservice, missind) %>% 
+  summarise(efecto_treatment = mean(call_back), obs_treatment = n(),var_t=var(call_back))%>% 
+  ungroup()%>% 
+  select(efecto_treatment,obs_treatment,var_t)
+
+
+# junto las tablas
+neyman_strat<-cbind(strat_control,strat_treatment)
+
+# le doy retoques esteticos
+neyman_strat<-neyman_strat %>% 
+  mutate(neyman=efecto_treatment-efecto_control)%>%
+  select(-efecto_control,-efecto_treatment)%>% 
+  gather(industry, match, 3:9) %>%
+  filter(match==1) %>%
+  mutate(sex=ifelse(female==1,"female","male"),
+         city=ifelse(chicago==1,"chicago","boston"),
+         weights=(obs_treatment+obs_control)/4870 )%>% 
+  ungroup()
+
+neyman_strat_output<-neyman_strat %>% 
+  select(sex,city,industry,neyman)
+```
+
+## Empleando  todas  las  combinaciones  posibles  de  las  variables  (i)-(iii),utiliza el método de Neyman para calcular el efecto de discrminacióon en cada estrato(elige  el  formato  que  quieras  para  reportar  este  resultado,  tabla  o  gráfica).
+
+```{r}
+kable(neyman_strat_output,caption="Diferencias en medias mediante estratificación",booktabs= T, longtable=T)%>%
+  kable_styling(position = "center",latex_options = "repeat_header")
+
+```
+
+##   Utilizando los efectos por estrato, calcula el efecto promedio de tratamiento.  Compara este estimador promedio y la varianza con el resultado que obtuviste en la pregunta(3).
+
+Recordemos que calculamos el efecto promedio de la siguiente manera:
+
+$$\overline\tau=\sum_{g=1}^G \overline\tau_g.(\frac{N_g}{N})$$
+
+```{r}
+# promedio ponderado
+(ate<-sum(neyman_strat$neyman*neyman_strat$weights))
+
+```
+
+Recordemos que la varianza dentro de cada estrato se calcula de la siguiente manera:
+
+$$V( \tau_{g})=\frac{S^2_{t,g}}{N_{t,g}}+\frac{S^2_{c,g}}{N_{c,g}} $$
+y la varianza total después de estratificar:
+
+$$V_{strat}( \tau)=\sum_{g=1}^G V( \tau_{g}).(\frac{N_g}{N})^2$$
+
+```{r}
+neyman_strat<-neyman_strat%>% 
+  mutate(variance_group=  (var_t/obs_treatment) + (var_c/obs_control))
+
+# varianza
+(varianza_total_por_estrato<-sum(neyman_strat$variance_group*((neyman_strat$weights)^2)))
+
+# desviación estandar
+(desviacion_tota_estratificado<-varianza_total_por_estrato^.5)
+
+```
+
+Como podemos observar, el valor de $\tau$ es el mismo que estimamos anteriormente y la desviación es aproximadamente la misma. Esto debido al buen balance y alteatorización de los datos.
+
+# 6.
+
+## Replica  la  primera  parte  de  laTabla 7 del  paper.   
+
+## Solo  para  el  renglón  de  “Total Number of Requirements” da una interpretación lo más específica posible de la columna “marginal effects.”  (Ojo:  Puedes considerar los errores estándar que arroja por default el software que utilices).
+
+```{r}
+
+# para esta tarea tengo que hacer un poco de rodeo pues no supe como calcular el efecto marginal promedio de la interacción con el comando margins
+# el rodeo consisito en desde la base de datos crear variables con la interacción que necesitaré, de esta manera la trato como una variable unica
+# ahora margins puede calcular el efecto marginal promedio solamente de la interacción
+
+# paso 1: creo la base de datos con las interacciones
+table_7<-data%>% 
+  select (call_back,black,req,expreq, eoe,compreq,comreq,orgreq,educreq)%>%
+  mutate(tot_req=(expreq+compreq+comreq+orgreq+educreq),
+         a=req*black,
+         b=expreq*black,
+         c=compreq*black,
+         d=comreq*black,
+         e=orgreq*black,
+         f=educreq*black,
+         g=tot_req*black )
+
+# paso 2: estimo los modelos probits
+A<-glm(call_back ~ black+req+a, 
+            family = binomial(link = "probit"),
+            table_7)
+B<-glm(call_back ~ black+expreq+b, 
+            family = binomial(link = "probit"),
+            table_7)
+C<-glm(call_back ~ black+compreq+c, 
+            family = binomial(link = "probit"),
+            table_7)
+D<-glm(call_back ~ black+comreq+d, 
+            family = binomial(link = "probit"),
+            table_7)
+E<-glm(call_back ~ black+orgreq+e, 
+            family = binomial(link = "probit"),
+            table_7)
+EFE<-glm(call_back ~ black+educreq+f, 
+            family = binomial(link = "probit"),
+            table_7)
+G<-glm(call_back ~ black+tot_req+g, 
+            family = binomial(link = "probit"),
+            table_7)
+
+# paso 3: extraigo el efecto marginal promedio y su desviación estandar
+
+a<-summary(margins(A, variables ="a"))
+b<-summary(margins(B, variables ="b"))
+c<-summary(margins(C, variables ="c"))
+d<-summary(margins(D, variables ="d"))
+e<-summary(margins(E, variables ="e"))
+f<-summary(margins(EFE, variables ="f"))
+g<-summary(margins(G, variables ="g"))
+
+# los guardo en dos vectores
+marginal_avg<-c(a$AME,b$AME,c$AME,d$AME,e$AME,f$AME,g$AME)
+marginal_sd<-c(a$SE,b$SE,c$SE,d$SE,e$SE,f$SE,g$SE)
+
+# paso 4: estimo la media y desvación estandar para cada variable
+table_7<-table_7%>% 
+  select (req,expreq,compreq,comreq,orgreq,educreq,tot_req)
+
+# paso 5: agrupo toda la información en una sola tabla 
+id = c("Any requirement?","Experience?","Computer skills?", "Communication skills?","Organization skills?", "Education?", "Total number of requirements")
+tabla<-data.frame(id,sapply(table_7, mean),sapply(table_7, sd),marginal_avg,marginal_sd)
+
+# paso 6: realizo algunos retoques estéticos
+
+kable(tabla, caption= "Efecto de requisitos en las diferencias raciales
+      en el callback",col.names = c("Requirement","Sample mean", "SD","Marginal effect","SE"), booktabs=T, digits = 3, longtable=T)%>%
+  
+  kable_styling(position = "center",latex_options = "repeat_header")
+```
+\newpage
+# 7.
+
+## Quisieras saber si la discriminación racial disminuye conforme aumenta la experiencia laboral  de  los  aplicantes. Elige  el  método  y  formato  que  prefieras  para  reportart us  resultados.   Muestra  claramente  qué  parámetro  o  combinación  de  parámetros contestan tu pregunta.
+
+
+```{r, fig.pos="h"}
+modelo_interaccion_naive<-lm(call_back ~ yearsexp+ I(black*yearsexp),data)
+modelo_interaccion<-lm(call_back ~ yearsexp+ black+ I(black*yearsexp),data)
+modelo_interaccion_completo<-lm(call_back ~ yearsexp+ black+ I(black*yearsexp)+I(yearsexp^2)+I(black*yearsexp^2),data)
+stargazer(modelo_interaccion_naive,modelo_interaccion,modelo_interaccion_completo,type="latex",summary=FALSE, header = F)
+```
+\newpage
+Para responder a la pregunta se propusieron tres modelos: el modelo (1) que evalúa una interacción de manera ingenua, el (2) que evalua la interacción pero controlando por black sin interacción y el (3) que evalua la interacción hasta un segundo grado, es decir si hay rendimientos. Lo que podemos concluir es que parece que en (1) si hay un efecto significativo de la discriminación en la que los beneficios de un año más experiencia son menores para los nombres negros. Sin embargo, este modelo está mal especificado pues la variable de interacción está capturando todo el efecto de black. Esto es evidente en el modelo (2) y (3) donde controlando por black, el coeficiente variable de interacción pasa a ser más pequeña y deja de tener significancia estadística. 
+
+Finalmente, en los modelos (2) y (3) notamos que ni el coeficiente de la interacción, ni el coeficiente de la interacción al cuadrado resultan ser estadísticamente significativos.
+
+En conclusión no hay evidencia para sostener que existe un efecto de interacción entre "black" y experiencia. Por el contrario, el efecto de la discriminación parece venir preponderantemente solo por el efecto de black.
+
+
+
+# 8.
+
+## ¿Cuántos CVs ficticios necesitaría aleatorizar si es que:  (i) tu anticipas que los efectos (varianza y efecto real) sean iguales a los obtenidos por Bertrand y Mullainathan, (ii) quieres un poder estadístico de 85%, (iii) asumes una significanciade 1%, y (iv) vas a dividir 50-50 tratamiento y control?
+
+Para esta pregunta debemos analizar a detalle la derivación en el texto de Imbens. Partimos de la prueba de hipótesis sobre la diferencia en efectos:
+
+
+$$H_n:E[Y_i(1)-Y_i(0)]=0$$
+$$H_a:E[Y_i(1)-Y_i(0)]\neq0$$
+
+lo cual podemos evaluar mediante el estadístico t:
+
+
+$$T=\frac{\overline{Y}^{obs}_t-\overline{Y}^{obs}_c}{\sqrt{S^2_Y/N_t+S^2_Y/N_c}}\approx \frac{\overline{Y}^{obs}_t-\overline{Y}^{obs}_c}{\sqrt{\sigma^2/N_t+\sigma^2/N_c}}\approx N(0,1)$$
+Por lo tanto:
+
+$$T \approx N(\frac{\tau}{\sqrt{\sigma^2/N_t+\sigma^2/N_c}},1)$$
+Rechazamos la hipotesis nula si
+
+$$p(|T|> \Phi^{-1}(1-\alpha/2)) \approx \Phi (-\Phi^{-1}(1-\alpha/2)+\frac{\tau}{\sqrt{\sigma^2/N_t+\sigma^2/N_c}})$$
+(simplificando)
+
+Queremos forzar la igualdad
+
+$$\beta=\Phi (-\Phi^{-1}(1-\alpha/2)+\frac{\tau}{\sqrt{\sigma^2/N_t+\sigma^2/N_c}})$$
+de la cual derivamos la siguiente ecuación en terminos de N:
+
+$$N=\frac{(\Phi^{-1}(\beta)+\Phi^{-1}(1-\alpha/2))^2}{(\tau^2/\sigma^2).\gamma.(1-\gamma)}$$
+donde $\gamma$ representa la proporción de tratados, $\beta$ el poder y $\alpha$ el nivel de singificancia.
+
+$$N=\frac{(\Phi^{-1}(.85)+\Phi^{-1}(.995))^2}{(-.032^2/\sigma^2).5^2}$$
+```{r}
+# un paso antes es evaluar cuál varianza usaremos, en el texto de Imbens, asumen que las varianzas muestrales son las mismas, por ello, evaluamos si es pertinente mantener ese supuesto.
+
+var_control
+var_treatment
+(var_pob<-var(data$call_back))
+var_neyman_t
+```
+
+```{r}
+# finalmente asumimos ese supuesto y computamos n 
+(N<-((qnorm(.85)+qnorm(.995))^2)/(((neyman_t^2/var_pob))*(.5^2)))
+
+```
+
+
+## En R o Stata, produce una gráfica que ilustre el tradeoff entre poder estadístico y  proporción  de  tratamiento  y  control  (similar  a  lo  que  hicimos  conOptimalDesign) fijando los valores que obtuviste en el inciso anterior (número de observaciones, efectos reales y significancia).
+
+
+```{r}
+
+# en primer lugar defino una función con la derivación de la formula de N del inciso anterior pero despejando para el poder
+
+fun.1 <- function(x)
+pnorm(sqrt(N*(((neyman_t^2/var_pob))*(x*(1-x))))-qnorm(.995))
+
+# en segundo lugar, grafico
+
+ggplot(data = data.frame(x = 0), maping = aes(x = x,y=fun.1))+ stat_function(fun = fun.1) + xlim(0,1)+ ylim(0,.85)+ labs(y="Poder", x = "Fracción tratamiento")+ ggtitle("Trade off")+ 
+  theme(text = element_text(size=20), panel.background = element_rect(fill = "lightblue"))
+
+
+```
+
+
+
