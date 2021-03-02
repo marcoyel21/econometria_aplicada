@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2021.2.26)  26 FEB 2021 23:05
+This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2021.2.26)  1 MAR 2021 20:23
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -550,9 +550,6 @@ LaTeX Warning: Label `tab:unnamed-chunk-3' multiply defined.
 
 LaTeX Warning: Label `' multiply defined.
 
-
-LaTeX Warning: Label `' multiply defined.
-
 )
 \openout1 = `script.aux'.
 
@@ -714,7 +711,7 @@ pdfTeX warning (ext4): destination with the same identifier (name{page.1}) has
 been already used, duplicate ignored
 <to be read again> 
                    \relax 
-l.20 \contentsline {section}{6.}{16}{section*.22}
+l.20 \contentsline {section}{6.}{15}{section*.21}
                                                  % [1]
 Overfull \hbox (4.43944pt too wide) in paragraph at lines 27--27
  [][] []\T1/lmr/m/n/10.95 En R o Stata, produce una gráfica que ilustre el trad
@@ -785,19 +782,19 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [6]
-Overfull \hbox (82.3172pt too wide) in paragraph at lines 456--456
+Overfull \hbox (82.3172pt too wide) in paragraph at lines 458--458
 [][]\T1/lmr/bx/n/12 Asumiendo que la distribución de nombres fue aleatoria, da 
 evidencia de si existe discriminación
  []
 
 
-Overfull \hbox (18.6132pt too wide) in paragraph at lines 456--456
+Overfull \hbox (18.6132pt too wide) in paragraph at lines 458--458
 \T1/lmr/bx/n/12 de OLS con errores heterocedásticos,(iii) una estimación de OLS
  agregando controles
  []
 
 LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 4
-61.
+63.
 (/Users/marcoyel21/Library/TinyTeX/texmf-dist/tex/latex/lm/ts1lmr.fd
 File: ts1lmr.fd 2009/10/30 v1.6 Font defs for Latin Modern
 )
@@ -846,22 +843,13 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [11]
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller to compensate:
-
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
-
-[12]
-Overfull \hbox (29.05824pt too wide) in paragraph at lines 780--780
+Overfull \hbox (29.05824pt too wide) in paragraph at lines 771--771
 [][]\T1/lmr/bx/n/12 Elige una de las columnas para llevar a cabo una interpreta
 ción del coeficienterelevante
  []
 
 
-Overfull \hbox (12.92276pt too wide) in paragraph at lines 780--780
+Overfull \hbox (12.92276pt too wide) in paragraph at lines 771--771
 \T1/lmr/bx/n/12 que estas estimando. Da evidencia como parte de esta interpreta
 ción la importancia
  []
@@ -874,7 +862,27 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
+[12]
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 13.59999pt, for example:
+(fancyhdr)                \setlength{\headheight}{13.59999pt}.
+(fancyhdr)                You might also make \topmargin smaller to compensate:
+
+(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
+
 [13]
+Overfull \hbox (19.88974pt too wide) in paragraph at lines 896--896
+[][]\T1/lmr/bx/n/12 Empleando todas las combinaciones posibles de las variables
+ (i)-(iii),utiliza el método
+ []
+
+
+Overfull \hbox (16.15475pt too wide) in paragraph at lines 896--896
+\T1/lmr/bx/n/12 de Neyman para calcular el efecto de discrminacióon en cada est
+rato(elige el formato
+ []
+
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
 (fancyhdr)                Make it at least 13.59999pt, for example:
@@ -884,17 +892,6 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [14]
-Overfull \hbox (19.88974pt too wide) in paragraph at lines 903--903
-[][]\T1/lmr/bx/n/12 Empleando todas las combinaciones posibles de las variables
- (i)-(iii),utiliza el método
- []
-
-
-Overfull \hbox (16.15475pt too wide) in paragraph at lines 903--903
-\T1/lmr/bx/n/12 de Neyman para calcular el efecto de discrminacióon en cada est
-rato(elige el formato
- []
-
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
 (fancyhdr)                Make it at least 13.59999pt, for example:
@@ -913,6 +910,9 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [16]
+Underfull \vbox (badness 2573) detected at line 1091
+ []
+
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
 (fancyhdr)                Make it at least 13.59999pt, for example:
@@ -922,13 +922,6 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [17]
-Underfull \vbox (badness 10000) detected at line 1098
- []
-
-
-Underfull \vbox (badness 10000) detected at line 1098
- []
-
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
 (fancyhdr)                Make it at least 13.59999pt, for example:
@@ -938,34 +931,25 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
 [18]
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 13.59999pt, for example:
-(fancyhdr)                \setlength{\headheight}{13.59999pt}.
-(fancyhdr)                You might also make \topmargin smaller to compensate:
-
-(fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
-
-[19]
-Overfull \hbox (22.57274pt too wide) in paragraph at lines 1135--1135
+Overfull \hbox (22.57274pt too wide) in paragraph at lines 1128--1128
 [][]\T1/lmr/bx/n/12 Quisieras saber si la discriminación racial disminuye confo
 rme aumenta la experiencia
  []
 
 
-Overfull \hbox (4.64522pt too wide) in paragraph at lines 1135--1135
+Overfull \hbox (4.64522pt too wide) in paragraph at lines 1128--1128
 \T1/lmr/bx/n/12 laboral de los aplicantes. Elige el método y formato que prefie
 ras para reportart us
  []
 
 
-Overfull \hbox (34.08871pt too wide) in paragraph at lines 1135--1135
+Overfull \hbox (34.08871pt too wide) in paragraph at lines 1128--1128
 \T1/lmr/bx/n/12 resultados. Muestra claramente qué parámetro o combinación de p
 arámetros contestan
  []
 
 
-Overfull \hbox (24.02544pt too wide) in paragraph at lines 1154--1190
+Overfull \hbox (24.02544pt too wide) in paragraph at lines 1147--1183
  [][] 
  []
 
@@ -977,7 +961,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[20]
+[19]
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
 (fancyhdr)                Make it at least 13.59999pt, for example:
@@ -986,8 +970,8 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[21]
-Overfull \hbox (39.72023pt too wide) in paragraph at lines 1223--1223
+[20]
+Overfull \hbox (39.72023pt too wide) in paragraph at lines 1216--1216
 \T1/lmr/bx/n/12 efectos (varianza y efecto real) sean iguales a los obtenidos p
 or Bertrand y Mullainathan,
  []
@@ -1000,7 +984,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[22]
+[21]
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
 (fancyhdr)                Make it at least 13.59999pt, for example:
@@ -1009,15 +993,15 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[23]
+[22]
 LaTeX Font Info:    Font shape `T1/lmtt/bx/n' in size <10.95> not available
-(Font)              Font shape `T1/lmtt/b/n' tried instead on input line 1313.
-<script_files/figure-latex/unnamed-chunk-19-1.pdf, id=318, 469.755pt x 325.215p
+(Font)              Font shape `T1/lmtt/b/n' tried instead on input line 1312.
+<script_files/figure-latex/unnamed-chunk-19-1.pdf, id=313, 469.755pt x 325.215p
 t>
 File: script_files/figure-latex/unnamed-chunk-19-1.pdf Graphic file (type pdf)
 <use script_files/figure-latex/unnamed-chunk-19-1.pdf>
 Package pdftex.def Info: script_files/figure-latex/unnamed-chunk-19-1.pdf  used
- on input line 1325.
+ on input line 1324.
 (pdftex.def)             Requested size: 469.75386pt x 325.2142pt.
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -1027,21 +1011,21 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 
 (fancyhdr)                \addtolength{\topmargin}{-1.59999pt}.
 
-[24 <./script_files/figure-latex/unnamed-chunk-19-1.pdf>] (./script.aux)
+[23 <./script_files/figure-latex/unnamed-chunk-19-1.pdf>] (./script.aux)
 
 LaTeX Warning: There were multiply-defined labels.
 
 Package rerunfilecheck Info: File `script.out' has not changed.
-(rerunfilecheck)             Checksum: CBB4BBB8C6583E917647960853E48729;20770.
+(rerunfilecheck)             Checksum: 22F59D4B3C7DD500B524C9F5783BBE36;20789.
  ) 
 Here is how much of TeX's memory you used:
- 14621 strings out of 480953
- 224903 string characters out of 5905801
- 575744 words of memory out of 5000000
+ 14619 strings out of 480953
+ 224890 string characters out of 5905801
+ 575799 words of memory out of 5000000
  31473 multiletter control sequences out of 15000+600000
  458411 words of font info for 63 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 71i,12n,74p,1992b,476s stack positions out of 5000i,500n,10000p,200000b,80000s
+ 71i,12n,74p,2011b,470s stack positions out of 5000i,500n,10000p,200000b,80000s
 {/Users/marcoyel21/Library/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc}{/
 Users/marcoyel21/Library/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-mathex.enc}{/
 Users/marcoyel21/Library/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-mathsy.enc}{/
@@ -1063,10 +1047,10 @@ coyel21/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmsy8.pfb></Users/marc
 oyel21/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmtk10.pfb></Users/marc
 oyel21/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmtt10.pfb></Users/marc
 oyel21/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmtti10.pfb>
-Output written on script.pdf (25 pages, 335361 bytes).
+Output written on script.pdf (24 pages, 335002 bytes).
 PDF statistics:
- 409 PDF objects out of 1000 (max. 8388607)
- 361 compressed objects within 4 object streams
- 87 named destinations out of 1000 (max. 500000)
+ 403 PDF objects out of 1000 (max. 8388607)
+ 356 compressed objects within 4 object streams
+ 85 named destinations out of 1000 (max. 500000)
  214 words of extra memory for PDF output out of 10000 (max. 10000000)
 

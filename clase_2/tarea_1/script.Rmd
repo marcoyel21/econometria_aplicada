@@ -146,7 +146,8 @@ data$expminreq<-as.numeric(data$expminreq)
 
 # A) información personal
 personal_info<-data%>% 
-  select (black,female,high,chicago) #Aquí omitimos callback pues esa es información del outcome y firstname, pues el treatment es black
+  select (black,female,high,chicago) 
+#Aquí omitimos callback pues esa es información del outcome y firstname, pues el treatment es black
 
 # B) información del cv
 cv_info<-data%>% 
@@ -182,7 +183,7 @@ kable_styling(position = "center",latex_options = "repeat_header")
 
 ## Deberíass incluir la(s) tabla(s) relevante(s) que te haya(n) permitido llegar a esta conclusión.
 
-En resumen, solamente en una variable de las 3 tablas anteriores encontramos una difrerencia de medias estadísticamente significativa (computerskills). Sin embargo, las medias son muy parecidas (.809 para el control y .832 para el tratamiento). Es decir que esta mínimamente favoreciendo a los nombres negros. Fuera de ese detalle, todo lo demás parece indicar que la asignación de nombres fue aleatoria. 
+En resumen, solamente en una variable de las 3 tablas anteriores encontramos una diferencia de medias estadísticamente significativa (*computerskills*). Sin embargo, las medias son muy parecidas (.809 para el control y .832 para el tratamiento). Es decir que esta mínimamente favoreciendo a los nombres negros. Fuera de ese detalle, todo lo demás parece indicar que la asignación de nombres fue aleatoria. 
 
 # 3.
 
@@ -224,10 +225,12 @@ n_treatment<-length((data %>%
 
 # Varianza del estimador de Neyman
 (var_neyman_t<-var_treatment/n_treatment+var_control/n_control)
+# Desviación estandar de Neyman
+(var_neyman_t**.5)
 
 ```
 
-+ **OLS con errores heterocedásticos**
++ **Robust OLS**
 
 ```{r}
 #para calcular el modelo con errores heterocedásticos primero calculo el modelo sin errores heterocedásticos y luego calculo los errores con el paquete sandwich
@@ -243,13 +246,19 @@ ols_con_eh %>%
 
 ```
 
-+ **OLS con controles**
++ **Robust OLS con controles**
 
 Agregamos las 3 variables con las diferencias más grandes, con miras a que tal vez estas variables puedan cambiar el coeficiente de black.
 
 ```{r}
-ols_con_controles<-lm(call_back ~ black+computerskills+female+military,data)
-stargazer(ols_con_controles,type="latex",summary=FALSE,header = F)
+# con errores homocedásticos
+(ols_con_controles<-lm(call_back ~ black+computerskills+female+military,data))
+
+# con corrección heterocedástica
+ols_con_controles %>% 
+    vcovHC() %>% 
+    diag() %>% 
+    sqrt()
 ```
 
 Lo que notamos esque ni aún así cambiamos el coeficiente de black, debido a la aleatorización exitosa de los investigadores.
@@ -265,6 +274,7 @@ stargazer(probit,type="latex",summary=FALSE, header = F)
 
 ```
 
+\newpage
 
 ## Indica la prueba de hipótesis que estarás contrastando en cada estimación.
 
@@ -275,14 +285,14 @@ Para este caso debo usar la prueba de Neyman
 $H_n: \mu_c-\mu_t=0$
 $H_a: \mu_c-\mu_t \neq0$
 
-+ **OLS con errores heterocedásticos**
++ **Robust OLS**
 
 Para este caso puedo realizar una prueba de significancia individual sobre el coeficiente de black que resuelvo con el estadístico t.
 
 $H_n: \beta_{black}=0$
 $H_a:\beta_{black} \neq0$
 
-+ **OLS con controles**
++ **Robust OLS con controles**
 Para este caso puedo realizar una prueba de significancia individual el coeficiente de black  que resuelvo con el estadístico t.
 
 $H_n: \beta_{black}=0$
@@ -301,7 +311,7 @@ kable(summary(margins(probit, variables ="black")))
 ```
 
 ## Reporta los resultados de tus 4 estimaciones con una tabla con el formato usual que empleamos el semestre pasado. Asegúrate que los resultados reportados en cada columna sean comparables.  Es decir, deberán estar reportados en las mismas unidades para poder hacer unacomparación a lo largo de las columnas.
-
+   
                               
 ```{r, results='asis'}
 # Para esta tarea, decidí mejor hacer manualmente mi tabla
@@ -317,7 +327,7 @@ s_dev_other_1<-c("","","(0.011)","")
 other_2<-c("","","0.012","")
 s_dev_other_2<-c("","","(0.010)","")
 other_3<-c("","","0.013","")
-s_dev_other_3<-c("","","(0.013)","")
+s_dev_other_3<-c("","","(0.012)","")
 
 # Elaboro mi data frame
 modelos_output<-t(data.frame(constant,s_dev_constant,estimates,s_dev,other_1,s_dev_other_1,other_2,s_dev_other_2,other_3,s_dev_other_3))
@@ -336,7 +346,7 @@ kable(modelos_output, col.names = c("Neyman","Robust OLS","Controled OLS","AME P
   
   kable_styling(position = "center",latex_options = "repeat_header")%>%
   
-  add_footnote( c("Para hacer el probit comparable solamente se muestra el Efecto Marginal Promedio con respecto a la variable Black"), notation = "symbol")
+  add_footnote( c("Para hacer el probit comparable solamente se muestra el Efecto Marginal Promedio con respecto a la variable Black","Se redondeó a 3 digitos "), notation = "symbol")
 
 
 ```
@@ -352,12 +362,13 @@ Aunque a simple vista parece una diferencia diminuta, debemos considerar que la 
 ## Utiliza un Fischer Exact Testpara evluar la hipótesis.  Reporta el valor p y la conclusión a la que llegas.
 
 $H_n: \mu_c-\mu_t=0.1$
+
 $H_a: \mu_c-\mu_t \neq.1$
 
 
 ```{r}
-# para este inciiso usaremos el comado twoSamplePermutationTestLocation
-# para usar este comando necestiamos crear vectores con las variables de interés
+# para este inciiso usaremos el comado twoSamplePermutationTestLocation.
+# Para usar este comando necestiamos crear vectores con las variables de interés
 vector_control<-data[data$black== 0,]$call_back
 vector_treatment<-data[data$black== 1,]$call_back
 fet<-twoSamplePermutationTestLocation(
@@ -377,11 +388,11 @@ fet$p.value
 
 ```
 
-Con más del 99% de significancia, rechazo la hipótesis nula, no existe evidencia para sostener que la diferencia es del 1%. 
+Con más del 99% de significancia, rechazo la hipótesis nula: no existe evidencia para sostener que la diferencia es del 1%. 
 
 # 5.
 
-## Imagina  que  estratificas  por:  (i)  sexo  del  aplicante  (hombre  o  mujer),  (ii)  ciudad donde se postula al trabajo (Chicago o Boston) e (iii) industria de la empresa quepublico  el  puesto  (ver  el  pdf  que  indica  las  industrias  disponibles)  [Ejemplo:   unposible estrato sería hombres aplicantes a trabajos en Chicago en la industria manufacturera]. 
+## Imagina  que  estratificas  por:  (i)  sexo  del  aplicante  (hombre  o  mujer),  (ii)  ciudad donde se postula al trabajo (Chicago o Boston) e (iii) industria de la empresa que publicó  el  puesto  (ver  el  pdf  que  indica  las  industrias  disponibles)  [Ejemplo:   un posible estrato sería hombres aplicantes a trabajos en Chicago en la industria manufacturera]. 
 
 ```{r}
 #para calcular el estimador de Neyman simplemente restamos las dos medias condicionadas a cada grupo
@@ -443,20 +454,20 @@ $$\overline\tau=\sum_{g=1}^G \overline\tau_g.(\frac{N_g}{N})$$
 
 Recordemos que la varianza dentro de cada estrato se calcula de la siguiente manera:
 
-$$V( \tau_{g})=\frac{S^2_{t,g}}{N_{t,g}}+\frac{S^2_{c,g}}{N_{c,g}} $$
+$$V_{estrato}( \tau_{g})=\frac{S^2_{t,g}}{N_{t,g}}+\frac{S^2_{c,g}}{N_{c,g}} $$
 y la varianza total después de estratificar:
 
-$$V_{strat}( \tau)=\sum_{g=1}^G V( \tau_{g}).(\frac{N_g}{N})^2$$
+$$V_{total}( \tau)=\sum_{g=1}^G V( \tau_{g}).(\frac{N_g}{N})^2$$
 
 ```{r}
 neyman_strat<-neyman_strat%>% 
   mutate(variance_group=  (var_t/obs_treatment) + (var_c/obs_control))
 
 # varianza
-(varianza_total_por_estrato<-sum(neyman_strat$variance_group*((neyman_strat$weights)^2)))
+(varianza_total_estratificada<-sum(neyman_strat$variance_group*((neyman_strat$weights)^2)))
 
 # desviación estandar
-(desviacion_tota_estratificado<-varianza_total_por_estrato^.5)
+(varianza_total_estratificada^.5)
 
 ```
 
@@ -470,9 +481,9 @@ Como podemos observar, el valor de $\tau$ es el mismo que estimamos anteriorment
 
 ```{r}
 
-# para esta tarea tengo que hacer un poco de rodeo pues no supe como calcular el efecto marginal promedio de la interacción con el comando margins
-# el rodeo consisito en desde la base de datos crear variables con la interacción que necesitaré, de esta manera la trato como una variable unica
-# ahora margins puede calcular el efecto marginal promedio solamente de la interacción
+# Para este inciso tuve que hacer un poco de rodeo pues no supe como calcular el efecto marginal promedio de la interacción con el comando margins.
+# El rodeo consisitó en desde la base de datos crear variables con la interacción que necesitaré, de esta manera la trato como una variable unica.
+# De esta manera , ahora margins puede calcular el efecto marginal promedio solamente de la interacción
 
 # paso 1: creo la base de datos con las interacciones
 table_7<-data%>% 
@@ -551,7 +562,7 @@ modelo_interaccion_completo<-lm(call_back ~ yearsexp+ black+ I(black*yearsexp)+I
 stargazer(modelo_interaccion_naive,modelo_interaccion,modelo_interaccion_completo,type="latex",summary=FALSE, header = F)
 ```
 \newpage
-Para responder a la pregunta se propusieron tres modelos: el modelo (1) que evalúa una interacción de manera ingenua, el (2) que evalua la interacción pero controlando por black sin interacción y el (3) que evalua la interacción hasta un segundo grado, es decir si hay rendimientos. Lo que podemos concluir es que parece que en (1) si hay un efecto significativo de la discriminación en la que los beneficios de un año más experiencia son menores para los nombres negros. Sin embargo, este modelo está mal especificado pues la variable de interacción está capturando todo el efecto de black. Esto es evidente en el modelo (2) y (3) donde controlando por black, el coeficiente variable de interacción pasa a ser más pequeña y deja de tener significancia estadística. 
+Para responder a la pregunta se propusieron tres modelos: el modelo (1) que evalúa una interacción de manera ingenua, el (2) que evalua la interacción pero controlando por black y el (3) que evalúa la interacción hasta un segundo grado, es decir si hay rendimientos. Lo que podemos concluir es que parece que en (1) si hay un efecto significativo de la discriminación en la que los beneficios de un año más experiencia son menores para los nombres negros. Sin embargo, este modelo está mal especificado pues la variable de interacción está capturando todo el efecto de black. Esto es evidente en el modelo (2) y (3) donde controlando por black, el coeficiente variable de interacción pasa a ser más pequeña y deja de tener significancia estadística. 
 
 Finalmente, en los modelos (2) y (3) notamos que ni el coeficiente de la interacción, ni el coeficiente de la interacción al cuadrado resultan ser estadísticamente significativos.
 
@@ -605,6 +616,7 @@ var_neyman_t
 
 ```
 
+En conclusión, necesitamos al menos 3765.553 CVs ficticios si es que anticipamos que los efectos (varianza y efecto real) sean iguales a los obtenidos por Bertrand y Mullainathan, (ii) queremos un poder estadístico de 85%, (iii) asumimos una significanciade 1%, y (iv) dividimos 50-50 tratamiento y control.
 
 ## En R o Stata, produce una gráfica que ilustre el tradeoff entre poder estadístico y  proporción  de  tratamiento  y  control  (similar  a  lo  que  hicimos  conOptimalDesign) fijando los valores que obtuviste en el inciso anterior (número de observaciones, efectos reales y significancia).
 
