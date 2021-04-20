@@ -1,0 +1,717 @@
+---
+title: "Tarea II"
+author: Marco Ramos 
+output: pdf_document
+---
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, message=F, include = F,warning = F)
+```
+
+
+```{r}
+#cargo librerias
+library(readr)
+library(AER)
+library(stargazer)
+library(dplyr)
+library(sandwich)
+library(wooldridge)
+library(gmm)
+data<-read_csv("data.csv")
+datos<-as.data.frame(data)
+```
+
+
+\tableofcontents
+\newpage
+# I.
+```{r}
+
+#creo las variables twoboys y twogirls (supongo que se refiere a que los dos primeros hijos son niños o niñas)
+data<-data %>% mutate(twoboys=samesex*boy2nd,twogirls=samesex-twoboys)
+
+#Estimo los modelos
+ej1_m1<-lm(weeksm1~kidcount,data)
+ej1_m2<-ivreg(weeksm1~kidcount+agem1+agefstm+black+hispan+othrace|. -kidcount + samesex,data = data)
+ej1_m3<-ivreg(weeksm1~kidcount+agem1+agefstm+black+hispan+othrace|. -kidcount + twoboys,data = data)
+ej1_m4<-ivreg(weeksm1~kidcount+agem1+agefstm+black+hispan+othrace|. -kidcount + twogirls,data = data)
+ej1_m5<-ivreg(weeksm1~kidcount+agem1+agefstm+black+hispan+othrace|. -kidcount + multi2nd,data = data)
+
+#Para el F de la primera etapa simplemente lo invoco de la información de resumen de cada modelo
+#summary(ej1_m2,diagnostics = T) #F=868.296
+#summary(ej1_m3,diagnostics = T) #F=128.405
+#summary(ej1_m4,diagnostics = T) #F=517.92
+#summary(ej1_m5,diagnostics = T) #F=2670.76 
+
+# Calculo los errores robustos
+cov1 <- vcovHC(ej1_m1, type = "HC")
+robust1.se <- sqrt(diag(cov1)) #.0528
+cov2 <- vcovHC(ej1_m2, type = "HC")
+robust2.se <- sqrt(diag(cov2))#0.9822
+cov3 <- vcovHC(ej1_m3, type = "HC")
+robust3.se <- sqrt(diag(cov3)) #2.552
+cov4 <- vcovHC(ej1_m4, type = "HC")
+robust4.se <- sqrt(diag(cov4)) # 1.2743
+cov5 <- vcovHC(ej1_m5, type = "HC") 
+robust5.se <- sqrt(diag(cov5)) #0.5394
+
+#stargazer(ej1_m1,ej1_m2,ej1_m3,ej1_m4,ej1_m5, type="text")
+
+```
+
+\begin{table}[!htbp] \centering 
+  \caption{Un instrumento} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lccccc} 
+\\[-1.8ex]\hline 
+\hline 
+\\[-1.8ex]& (1) & (2) & (3) & (4) & (5) \\ 
+\\Variable dependiente: & \textit{weeksm1} & \textit{weeksm1} & \textit{weeksm1} & \textit{weeksm1} & \textit{weeksm1}\\ 
+\hline \\[-1.8ex] 
+ \textit{kidcount} & $-$3.466$^{***}$ & $-$4.433$^{***}$ & - & - & - \\ 
+  & (0.0528) & (0.9822) & - & - & - \\ 
+  & & & & & \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{N} & 254,654  & 254,654  & -  & - & - \\ 
+\textit{F} 1a etapa & - & 868.296$^{***}$ & -  & - & -  \\ 
+\hline \\[-1.8ex] 
+\\Método & MCO & IV & - & - & - \\ 
+Instrumento & -   & \textit{samesex} & -  & -  & -  \\ 
+\hline 
+\hline \\[-1.8ex] 
+\multicolumn{6}{l}{Todas las regresiones controlan por \textit{agem1}, \textit{agef}, \textit{stm}, \textit{black},\textit{hispan},\textit{othrace}}\\ 
+\multicolumn{6}{l}{Errores robustos entre parentesis}\\ 
+\multicolumn{6}{l}{ $^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+# II.
+
+Para la columna 1, el MCO, un aumento de uno en la cantidad de hijos a partir de 2 está relacionado con una disminución de 3.466 en las horas de trabajo semanales de la madre (en 1979), todo lo demas constante. Para la columna 2,  un aumento de uno en la cantidad de hijos está relacionado con una disminución de 4.43 en las horas de trabajo semanales de la madre (en 1979) para las mujeres que tuvieron a los dos primeros hijos del mismo sexo, todo lo demas constante. 
+
+
+Ambos coeficientes son estadisticamente significantes al 99% y ambos efectos son de tamaño considerable pues componen el 6% y el 8% del máximo posible de horas que las mujeres de la muestra trabajaron (52 horas).
+
+# III.
+
+El supuesto de relevancia se refiere a que nuestro instrumento debe estar asociado con nuestra variable endógena. Este supuesto es muy importante porque permite que nuestro instrumento identifique a nuestra variable endógena y en consecuencia la variable instrumental tenga un buen desempeño. En este caso, nuestro instrumento es un instrumento fuerte pues la regresión del primer paso tiene una F muy grande (que podemos ver en la tabla anterior) y significativa al 99%. 
+
+Asimismo, a continuación mostramos el primer paso de la estimación de VI. Notamos que samex tiene un coeficiente positivo y estadísticamente significativo al 99%. Asímismo, cuenta con un estadístico t de 28.3($t=\frac{.085}{.003}$) lo cuál indica una fuerte asociación.
+
+```{r}
+#Estimo los modelos
+m2_1s<-lm(kidcount~samesex+agem1+agefstm+black+hispan+othrace,data = data)
+mnull<-lm(kidcount~1,data = data)
+stargazer(m2_1s,type="latex")
+```
+
+\begin{table}[!htbp] \centering 
+  \caption{} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{1}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-2} 
+\\[-1.8ex] & kidcount \\ 
+\hline \\[-1.8ex] 
+ samesex & 0.085$^{***}$ \\ 
+  & (0.003) \\ 
+  & \\ 
+ agem1 & 0.056$^{***}$ \\ 
+  & (0.0005) \\ 
+  & \\ 
+ agefstm & $-$0.076$^{***}$ \\ 
+  & (0.001) \\ 
+  & \\ 
+ black & 0.164$^{***}$ \\ 
+  & (0.007) \\ 
+  & \\ 
+ hispan & 0.276$^{***}$ \\ 
+  & (0.006) \\ 
+  & \\ 
+ othrace & 0.127$^{***}$ \\ 
+  & (0.007) \\ 
+  & \\ 
+ Constant & 2.299$^{***}$ \\ 
+  & (0.014) \\ 
+  & \\ 
+\hline \\[-1.8ex] 
+Observations & 254,654 \\ 
+R$^{2}$ & 0.106 \\ 
+Adjusted R$^{2}$ & 0.106 \\ 
+Residual Std. Error & 0.728 (df = 254647) \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{1}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+\newpage
+
+# IV.
+
+El otro supuesto es el de exclusion y se refiere  a que nuestro instrumento solo tiene un efecto en nuestra variable objetivo a través de la variable endógena X. Esto con el fin de construir una aproximación exógena de nuestra variable endógena X y corregir por la correlación entre u y x. Para corroborar este supuesto podemos comparar la regresión estructural contemplando al mismo tiempo nuestra variable endógena y el instrumento frente a la misma regresión estructural sin la variable endógena.
+
+```{r}
+#Estimo los modelos
+m2_1s<-lm(weeksm1~kidcount+samesex+agem1+agefstm+black+hispan+othrace,data = data)
+m2_2s<-lm(weeksm1~samesex+agem1+agefstm+black+hispan+othrace,data = data)
+
+stargazer(m2_1s,m2_2s,type="latex")
+```
+
+\begin{table}[!htbp] \centering 
+  \caption{} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lcc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{2}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-3} 
+\\[-1.8ex] & \multicolumn{2}{c}{weeksm1} \\ 
+\\[-1.8ex] & (1) & (2)\\ 
+\hline \\[-1.8ex] 
+ kidcount & $-$5.542$^{***}$ &  \\ 
+  & (0.057) &  \\ 
+  & & \\ 
+ samesex & 0.094 & $-$0.377$^{***}$ \\ 
+  & (0.084) & (0.085) \\ 
+  & & \\ 
+ agem1 & 1.402$^{***}$ & 1.089$^{***}$ \\ 
+  & (0.014) & (0.014) \\ 
+  & & \\ 
+ agefstm & $-$1.429$^{***}$ & $-$1.007$^{***}$ \\ 
+  & (0.016) & (0.016) \\ 
+  & & \\ 
+ black & 11.199$^{***}$ & 10.289$^{***}$ \\ 
+  & (0.189) & (0.193) \\ 
+  & & \\ 
+ hispan & 0.475$^{***}$ & $-$1.057$^{***}$ \\ 
+  & (0.177) & (0.179) \\ 
+  & & \\ 
+ othrace & 3.148$^{***}$ & 2.442$^{***}$ \\ 
+  & (0.200) & (0.204) \\ 
+  & & \\ 
+ Constant & 19.229$^{***}$ & 6.486$^{***}$ \\ 
+  & (0.435) & (0.422) \\ 
+  & & \\ 
+\hline \\[-1.8ex] 
+Observations & 254,654 & 254,654 \\ 
+R$^{2}$ & 0.074 & 0.040 \\ 
+Adjusted R$^{2}$ & 0.074 & 0.040 \\ 
+Residual Std. Error & 21.042 (df = 254646) & 21.424 (df = 254647) \\ 
+F Statistic & 2,911.996$^{***}$ (df = 7; 254646) & 1,773.779$^{***}$ (df = 6; 254647) \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{2}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+En esta regresión podemos observar que en presencia de kidcount el coeficiente de samesex no es distinto a cero de manera estadísticamente significativa.
+
+
+# V.
+
+Podemos generar el coeficiente de variable instrumental de *kidcount* con valor de -4.43 dividiendo el coeficiente del instrumento de la forma reducida entre el coeficiente del instrumento en la regresión de primera etapa.
+
+$$ Y =-0.377*X+\sum_{i=j}^k \beta_{i}W_i $$
+$$ X =0.085*Z+\sum_{i=j}^k \beta_{i}W_i $$
+
+$$\beta_{IV}=-0.377/ 0.085= -4.43$$
+Asimismo, también podemos estimar el coeficiente de la regresión estructural usando nuestra x de la regresión de primera etapa (etiquetada como *kdcount_inst*).
+
+```{r}
+#Estimo los modelos
+s1<-lm(kidcount~samesex+agem1+agefstm+black+hispan+othrace,data = data)
+data<-data%>%mutate(kdcount_inst=predict(s1))
+estructural<-lm(weeksm1~kdcount_inst+agem1+agefstm+black+hispan+othrace,data = data)
+reduced<-lm(weeksm1~samesex+agem1+agefstm+black+hispan+othrace,data = data)
+stargazer(s1,reduced,estructural,type="latex")
+```
+
+\begin{table}[!htbp] \centering 
+  \caption{} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{3}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-4} 
+\\[-1.8ex] & (Etapa 1) & (Reducida) & (Estructural IV)\\ 
+\\[-1.8ex] & kidcount & \multicolumn{2}{c}{weeksm1} \\ 
+\hline \\[-1.8ex] 
+ samesex & 0.085$^{***}$ & $-$0.377$^{***}$ &  \\ 
+  & (0.003) & (0.085) &  \\ 
+  & & & \\ 
+ kdcount\_inst &  &  & $-$4.433$^{***}$ \\ 
+  &  &  & (0.999) \\ 
+  & & & \\ 
+ agem1 & 0.056$^{***}$ & 1.089$^{***}$ & 1.339$^{***}$ \\ 
+  & (0.0005) & (0.014) & (0.058) \\ 
+  & & & \\ 
+ agefstm & $-$0.076$^{***}$ & $-$1.007$^{***}$ & $-$1.344$^{***}$ \\ 
+  & (0.001) & (0.016) & (0.078) \\ 
+  & & & \\ 
+ black & 0.164$^{***}$ & 10.289$^{***}$ & 11.017$^{***}$ \\ 
+  & (0.007) & (0.193) & (0.253) \\ 
+  & & & \\ 
+ hispan & 0.276$^{***}$ & $-$1.057$^{***}$ & 0.168 \\ 
+  & (0.006) & (0.179) & (0.329) \\ 
+  & & & \\ 
+ othrace & 0.127$^{***}$ & 2.442$^{***}$ & 3.007$^{***}$ \\ 
+  & (0.007) & (0.204) & (0.240) \\ 
+  & & & \\ 
+ Constant & 2.299$^{***}$ & 6.486$^{***}$ & 16.679$^{***}$ \\ 
+  & (0.014) & (0.422) & (2.379) \\ 
+  & & & \\ 
+\hline \\[-1.8ex] 
+Observations & 254,654 & 254,654 & 254,654 \\ 
+R$^{2}$ & 0.106 & 0.040 & 0.040 \\ 
+Adjusted R$^{2}$ & 0.106 & 0.040 & 0.040 \\ 
+Residual Std. Error (df = 254647) & 0.728 & 21.424 & 21.424 \\ 
+F Statistic (df = 6; 254647) & 5,009.233$^{***}$ & 1,773.779$^{***}$ & 1,773.779$^{***}$ \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{3}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+# VI.
+
+## A)
+
+\begin{table}[!htbp] \centering 
+  \caption{Un instrumento} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lccccc} 
+\\[-1.8ex]\hline 
+\hline 
+\\[-1.8ex]& (1) & (2) & (3) & (4) & (5) \\ 
+\\Variable dependiente: & \textit{weeksm1} & \textit{weeksm1} & \textit{weeksm1} & \textit{weeksm1} & \textit{weeksm1}\\ 
+\hline \\[-1.8ex] 
+ \textit{kidcount} & $-$3.466$^{***}$ & $-$4.433$^{***}$ & $-$7.961$^{***}$ & $-$2.612$^{**}$ & $-$3.267$^{***}$ \\ 
+  & (0.0528) & (0.9822) & (2.552) & (1.2743) & (0.5394) \\ 
+  & & & & & \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{N} & 254,654  & 254,654  & 254,654  & 254,654  & 254,654  \\ 
+\textit{F} 1a etapa & - & 868.296$^{***}$ & 128.405$^{***}$  & 517.92$^{***}$  & 2670.76$^{***}$  \\ 
+\hline \\[-1.8ex] 
+\\Método & MCO & IV & IV & IV & IV \\ 
+Instrumento & -   & \textit{samesex} & \textit{twoboys}  & \textit{twogirls}  & \textit{multi2nd}  \\ 
+\hline 
+\hline \\[-1.8ex] 
+\multicolumn{6}{l}{Todas las regresiones controlan por \textit{agem1}, \textit{agef}, \textit{stm}, \textit{black},\textit{hispan},\textit{othrace}}\\ 
+\multicolumn{6}{l}{Errores robustos entre parentesis}\\ 
+\multicolumn{6}{l}{ $^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table}
+
+De la tabla podemos observar que parece que todas las estimaciones se elaboraron con base en un buen instrumento (por el alto valor de cada F); qué todos los coeficientes son estadísticamente significantes y negativos; sin embargo, algo muy interesante es su tamaño pues el de la estimación con el instrumento de *twoboys* produce un coeficiente de casi 3 veces el tamaño de la estimación con *twogirls* como instrumento. Esto es evidencia de un efecto diferenciado por género en el que las mamás dejan de trabajar más horas una vez tenidos dos hijos que si hubieran tenido dos hijas. Probablemente por la hipótesis del podcast cuyo argumento se desarrolla en otros incisos. Asimismo notamos que cuando usamos el isntrumento *mult2nd*, el coeficiente que obtenemos es muy similar al que obtuvimos con MCO, lo que puede indicar que no hay un sesgo considerable que controlar para las parejas que tuvieron gemelos en su segundo y tercer hijo. Personalmente a priori esperaba que los coeficientes serían similares y que la desviación de cada uno sería mayor en IV. Lo que no esperaba era la diferencia entre la estimación para IV *twoboys* con *twogirls*. Finalmente, los resultados no son comparables pues dependiendo la variable instrumental que se está usando es el grupo específico del cual el $\beta$ indica el LATE.
+
+## B) 
+
+**Compliers**
+
++ Para el modelo 2 (con IV *samesex*) el complier serían mujeres que tuvieron hijos adicionales si solo si los dos primeros hijos fueron del mismo sexo.
+
++ Para el modelo 3 (con *twoboys*) el complier son mujeres que  tuvieron hijos adicionales solo si los dos primeros hijos fueron varones.
+
++ Para el modelo 4 (con *twogirls*) el complier son las mujeres que tuvieron hijos adicionales  si solo si los dos primeros hijos fueron mujeres.
+
++ Para el modelo 5 (con *multi2nd*) el complier son las mujeres que tuvieron hijos adicionales solo si tuviesen gemelos en el segundo y tercer hijo.
+
+## C) 
+
+Para hacer el cálculo siguiente haremos uso de la siguientes desigualdades que se derivan de las posibles categorizaciones de individuos.
+
+$$P(Defier) \leq P(T=1|Z=0) + P(T=0|Z=1)$$
+$$P(AlwaysT)  \leq  P(T=1|Z=1) + P(T=1|Z=0)$$
+$$P(NeverT) \leq  P(T=0|Z=0) + P(T=0|Z=1)$$ 
+$$P(Complier)  \leq  P(T=1|Z=1) + P(T=0|Z=0)$$ 
+
+De ahí que obtengamos las siguientes 2 ecuaciones:
+
+$$P(T=1|Z=1)=P(AlwaysT)+P(Compliers)$$
+$$P(T=1|Z=0)=P(AlwaysT)+P(Defiers)$$
+Donde $Z$ se refiere a nuestro instrumento y $T$ en este caso se refie a si la persona ha tenido más de 2 hijos, para lo cuál aprovechamos que ya existe dicha variable (*morekids*). 
+
+Ahora, podemos despejar la probabilidad de ser cada tipo de particiapnete solo si asumimos el supuesto de que la probabilidad de ser defier es cero. De lo contario jamás podríamos averiguar la probabilidad de ser *always taker* en la segunda ecuación y en consecuencia no podríamos despejar la probabiliad de ser un *complier* de la primera ecuación. El *defier* sería aquella persona que teniendo valor de 1 en el instrumento, no ha tenido más de 2 hijos o que teniendo valor de cero en el instrumento, sí ha tenido más de dos hijos. Como estos casos también podrían referirse a un *never taker* y a un *always taker*, respectivamente, de ahí la conveniencia del supuesto.
+
+
+```{r}
+#calculo las proporciones para cada modelo y checo que los conteos sean coherentes
+#modelo2
+m2_p1z1<-sum(data$morekids*data$samesex)/sum(data$samesex) #P(T=1|Z=1)
+m2_always_takers<-sum(data$morekids*(1-data$samesex))/sum(1-data$samesex)#P(T=1|Z=0)
+m2_compliers<-m2_p1z1-m2_always_takers #P(T=1|Z=1)-P(T=1|Z=0)
+m2_never_takers<-sum((1-data$morekids)*(data$samesex))/sum(data$samesex) #P(T=0|Z=1)+P(T=0|Z=0)=P(T=0|Z=1)
+m2_prueba<-m2_compliers+m2_always_takers+m2_never_takers
+```
+
+```{r}
+#modelo3
+m3_p1z1<-sum(data$morekids*data$twoboys)/sum(data$twoboys) #P(T=1|Z=1)
+m3_always_takers<-sum(data$morekids*(1-data$twoboys))/sum(1-data$twoboys)#P(T=1|Z=0)
+m3_compliers<-m3_p1z1-m3_always_takers #P(T=1|Z=1)-P(T=1|Z=0)
+m3_never_takers<-sum((1-data$morekids)*(data$twoboys))/sum(data$twoboys) #P(T=0|Z=1)+P(T=0|Z=0)=P(T=0|Z=1)
+m3_prueba<-m3_compliers+m3_always_takers+m3_never_takers
+```
+
+```{r}
+#modelo4
+m4_p1z1<-sum(data$morekids*data$twogirls)/sum(data$twogirls) #P(T=1|Z=1)
+m4_always_takers<-sum(data$morekids*(1-data$twogirls))/sum(1-data$twogirls)#P(T=1|Z=0)
+m4_compliers<-m4_p1z1-m4_always_takers #P(T=1|Z=1)-P(T=1|Z=0)
+m4_never_takers<-sum((1-data$morekids)*(data$twogirls))/sum(data$twogirls) #P(T=0|Z=1)+P(T=0|Z=0)=P(T=0|Z=1)
+m4_prueba<-m4_compliers+m4_always_takers+m4_never_takers
+```
+
+
+```{r}
+#modelo5 ingenuo
+naive_m5_p1z1<-sum(data$morekids*data$multi2nd)/sum(data$multi2nd) #P(T=1|Z=1)
+naive_m5_always_takers<-sum(data$morekids*(1-data$multi2nd))/sum(1-data$multi2nd)#P(T=1|Z=0)
+naive_m5_compliers<-naive_m5_p1z1-naive_m5_always_takers #P(T=1|Z=1)-P(T=1|Z=0)
+naive_m5_never_takers<-sum((1-data$morekids)*(data$multi2nd))/sum(data$multi2nd) #P(T=0|Z=1)+P(T=0|Z=0)=P(T=0|Z=1)
+naive_m5_prueba<-naive_m5_compliers+naive_m5_always_takers+naive_m5_never_takers
+
+
+#modelo5 alternativo
+#en este caso lo adecuado ya no es saber si la persona tuvo un tercer hijo (porqué es evidente que si lo tuvo sino si decidió tener un cuarto hijo, en este caso necesitamos cambiar nuestra T a una variable ad hoc que indique si la persona ha decidio tener un cuarto o más hijos)
+data<-data %>%  mutate(more3kids=ifelse(kidcount>3,1,0))
+
+m5_p1z1<-sum(data$more3kids*data$multi2nd)/sum(data$multi2nd) #P(T=1|Z=1)
+m5_always_takers<-sum(data$more3kids*(1-data$multi2nd))/sum(1-data$multi2nd)#P(T=1|Z=0)
+m5_compliers<-m5_p1z1-m5_always_takers #P(T=1|Z=1)-P(T=1|Z=0)
+m5_never_takers<-sum((1-data$more3kids)*(data$multi2nd))/sum(data$multi2nd) #P(T=0|Z=1)+P(T=0|Z=0)=P(T=0|Z=1)
+m5_prueba<-m5_compliers+m5_always_takers+m5_never_takers
+```
+
+
+\begin{table}[!htbp] \centering 
+  \caption{Porcentaje} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lcccccc} 
+\\[-1.8ex]\hline 
+\hline 
+\\Modelo: & (1) & (2) & (3) & (4) & (5 naive) & (5) \\ 
+\hline \\[-1.8ex] 
+ \textit{always takers}& - & 34.6 \% & 37.2 \%  & 36.7 \%  & 37.53 \%  & 9.4 \%  \\ 
+ \textit{compliers} & -  & 06.7 \%  & 03.2 \%  & 05.8 \%  & 62.47 \%  & 14.4 \%  \\ 
+ \textit{never takers} & - & 59.6 \%  & 59.6 \%  & 57.5 \%  & 00.0 \%  & 76.1 \% \\ 
+ \textit{defiers} & - & 00.0 \% & 00.0 \% & 00.0 \%  & 00.0 \% & 00.0 \%  \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{N} & 254,654  & 254,654  & 254,654  & 254,654  & 254,654 & 254,654  \\ 
+\hline \\[-1.8ex] 
+\\Método & MCO & IV & IV & IV & IV & IV  \\ 
+Instrumento & -   & \textit{samesex} & \textit{twoboys}  & \textit{twogirls}  & \textit{multi2nd}  & \textit{multi2nd} \\ 
+\hline 
+\hline \\[-1.8ex] 
+\multicolumn{7}{l}{Todas las regresiones controlan por \textit{agem1}, \textit{agef}, \textit{stm}, \textit{black},\textit{hispan},\textit{othrace}}\\ 
+\multicolumn{7}{l}{Para 5 naive se uso \textit{morekids} como T}\\ 
+\multicolumn{7}{l}{Para 5 se uso una variable ad hoc (más de 3 hijos) como T}\\ 
+
+\end{tabular} 
+\end{table}
+
+
+## D)
+
+Sí es posible que sean compatibles. Por ejemplo, el hecho de que el coeficiente de *kidcount* sea mayor con la VI *twoboys* puede indicarnos que las mamá compliers en este caso al contar con la seguridad de un matrimonio (y el ingreso del esposo asegurado para el hogar) puede dejar de trabajar más tiempo. Por el contrario, el coeficinete (de menor tamaño) con la IV *twogirls* puede indicarnos que la mujeres compliers están en una pocisión donde no pueden dejar de trabajar tanto, probablemente debido a que están solteras, divorcioadas o el marido abandonó a la familia.
+
+
+# VII.
+
+```{r}
+
+#Estimo los modelos
+ej6_m1<-ivreg(weeksm1~kidcount+agem1+agefstm+black+hispan+othrace|. -kidcount + twoboys+twogirls,data = data)
+ej6_m2<-ivreg(weeksm1~kidcount+agem1+agefstm+black+hispan+othrace|. -kidcount + samesex+multi2nd,data = data)
+ej6_m3<-ivreg(weeksm1~kidcount|samesex+multi2nd,data = data)
+
+
+#Para el F de la primera etapa simplemente lo invoco de la información de resumen de cada modelo
+#summary(ej6_m1,diagnostics = T) #F=464.098
+#summary(ej6_m2,diagnostics = T) #F=1776.748
+#summary(ej6_m3,diagnostics = T) #F=1563.088 
+
+# Calculo los errores robustos
+covm1 <- vcovHC(ej6_m1, type = "HC")
+robustm1.se <- sqrt(diag(covm1)) #.9506
+covm2 <- vcovHC(ej6_m2, type = "HC")
+robustm2.se <- sqrt(diag(covm2))#0.4734
+covm3 <- vcovHC(ej6_m3, type = "HC")
+robustm3.se <- sqrt(diag(covm3)) #0.497
+
+
+#stargazer(ej6_m1,ej6_m2,ej6_m3, type="text")
+```
+
+\begin{table}[!htbp] \centering 
+  \caption{Varios instrumentos} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lccccc} 
+\\[-1.8ex]\hline 
+\hline 
+\\[-1.8ex]& (1) & (2) & (3) & (4) & (5) \\ 
+\\Variable dependiente: & \textit{weeksm1} & \textit{weeksm1} & \textit{weeksm1} & \textit{weeksm1} & \textit{weeksm1}\\ 
+\hline \\[-1.8ex] 
+ \textit{kidcount} & $-$4.018$^{***}$ & $-$3.554$^{***}$ & $-$3.502$^{***}$ & - & -\\ 
+  & (0.9506) & (0.4734) & (0.497) & - & - \\ 
+  & & & & & \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{N} & 254,654  & 254,654  & 254,654  & - & -  \\ 
+\textit{F} 1a etapa & 464.098$^{***}$ & 1776.748$^{***}$ & 1563.088 $^{***}$  & - & -  \\ 
+\hline \\[-1.8ex] 
+\\Método & IV & IV & IV & GME & GME \\ 
+Instrumento & \textit{twoboys}    & \textit{samesex} &\textit{samesex}  &  &  \\ 
+ & \textit{twobgirls}   & \textit{multi2nd} & \textit{multi2nd}  &   &  \\ 
+ \\Controles & Sí & Sí & No & Sí & Sí \\ 
+\hline 
+\hline \\[-1.8ex] 
+\multicolumn{6}{l}{Todas las regresiones controlan por \textit{agem1}, \textit{agef}, \textit{stm}, \textit{black},\textit{hispan},\textit{othrace}}\\ 
+\multicolumn{6}{l}{Errores robustos entre parentesis}\\ 
+\multicolumn{6}{l}{ $^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+
+## A)
+
+El resultado sí era de esperar pues ahora estamos usando dos VIs, lo que quiere decir que la variable endógena está siendo estimada con base en dos instrumentos. Como esto implica que la primera etapa sería algo como $X=\beta_{z1} Z_1+\beta_{z2} Z_2+\sum_{i=j}^k \beta_{i}W_i$, en la ecuación estructural el coeficiente de X sería ahora un promedio ponderado de ambos instrumentos. En este sentido, esperaríamos que el coeficiente de este nuevo modelo existiera acotado entre los dos coeficientes del modelo 3 y 4 de la tabla 1.
+
+$$-7.961\leq -4.018 \leq -2.612$$
+
+$$\beta_{IV twoboys}\leq \beta_{IV (twoboys,twogirls)}\leq \beta_{IV twogirls}$$
+donde
+
+$$ \beta_{IV(twoboys,twogirls)}= \omega \beta_{IV twoboys}+(1-\omega)\beta_{IV twogirls}$$
+y
+
+$$\omega=\frac{ \beta_{z1} Cov(X,Z_1)}{\beta_{z1} Cov(X,Z_1+\beta_{z2} Cov(X,Z_2)}$$
+
+
+## B)
+
+Si era de esperarse, pues la motivación de los covariates no es cambiar el LATE sino aumentar la eficiencia del estimador, en este sentido fue exitoso pues el error estandar se ha disminuido.
+
+
+# VIII.
+
+```{r}
+
+#Estimo los modelos
+#ej7_m1<-gmm(weeksm1~kidcount+agem1+agefstm+black+hispan+othrace, ~ twoboys+twogirls+multi2nd+agem1+agefstm+black+hispan+othrace, data)
+
+#ej7_m2<-gmm(weeksm1~kidcount+agem1+agefstm+black+hispan+othrace,~ samesex+multi2nd+agem1+agefstm+black+hispan+othrace, data)
+
+
+#Para el F de la primera etapa simplemente lo invoco de la información de resumen de cada modelo
+#summary(ej7_m1,diagnostics = T) #F=464.098
+#summary(ej6_m2,diagnostics = T) #F=1776.748
+#summary(ej6_m3,diagnostics = T) #F=1563.088 
+
+# Calculo los errores robustos
+#cov_m7_1 <- vcov(ej7_m1, type = "HC")
+#robustm7_1.se <- sqrt(diag(cov_m7_1)) #.9506
+#cov_m7_2  <- vcov(ej7_m2, type = "HC")
+#robustm7_2.se <- sqrt(diag(cov_m7_2))#0.4734
+
+
+
+#stargazer(ej7_m1,ej7_m2, type="text")
+```
+
+\begin{table}[!htbp] \centering 
+  \caption{Varios instrumentos} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lccccc} 
+\\[-1.8ex]\hline 
+\hline 
+\\[-1.8ex]& (1) & (2) & (3) & (4) & (5) \\ 
+\\Variable dependiente: & \textit{weeksm1} & \textit{weeksm1} & \textit{weeksm1} & \textit{weeksm1} & \textit{weeksm1}\\ 
+\hline \\[-1.8ex] 
+ \textit{kidcount} & $-$4.018$^{***}$ & $-$3.554$^{***}$ & $-$3.502$^{***}$ & $-$3.452$^{***}$ & $-$3.538$^{***}$\\ 
+  & (0.9506) & (0.4734) & (0.497) & (0.4712) & (0.4747) \\ 
+  & & & & & \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{N} & 254,654  & 254,654  & 254,654  & - & -  \\ 
+\textit{F} 1a etapa & 464.098$^{***}$ & 1776.748$^{***}$ & 1563.088 $^{***}$  & - & -  \\ 
+\hline \\[-1.8ex] 
+\\Método & IV & IV & IV & GME & GME \\ 
+Instrumento & \textit{twoboys}    & \textit{samesex} &\textit{samesex}  & \textit{twoboys} & \textit{samesex} \\ 
+ & \textit{twobgirls}   & \textit{multi2nd} & \textit{multi2nd}  & \textit{twobgirls}  & \textit{multi2nd}  \\ 
+ \\Controles & Sí & Sí & No & Sí & Sí \\ 
+\hline 
+\hline \\[-1.8ex] 
+\multicolumn{6}{l}{Todas las regresiones controlan por \textit{agem1}, \textit{agef}, \textit{stm}, \textit{black},\textit{hispan},\textit{othrace}}\\ 
+\multicolumn{6}{l}{Errores robustos entre parentesis}\\ 
+\multicolumn{6}{l}{ $^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+## A) 
+
+Considero que es mejor estimacion el modelo 4 que el 5 porque A) tiene menor desviación estandar y mas que nada porque B) esta mejor especificado. En particular este modelo 5 puede estar mal especificado porque el instrumento *multi2nd* es incorrecto para la variable endógnea *kidcount* en el sentido de que el complier de *multi2nd* son aquellas mujeres que tendrían un cuarto o más hijos solo si tuvieron gemelos en el segundo y tercero, osea son mujeres que ya tuvieron un tercer hijo si o si y por ello el coeficiente es ligeramente más grande en el modelo 5. Este detalle es evidente en el inciso de las proporciones donde la proporción de never takers del modelo tal cual está especificado sería del 0%.
+
+## B)
+
+El valor del coeficiente y su desviación estandar es muy similar, aunque GMM logró una menor desivación estandar. Creo que es razonable que esto pasara debido a que ambos enfoques están haciendo cálculos muy similares y además que GMM es una mejor alternativa para obtener los errores adecuados en presencia de heterocedasticidad, los errores de GMM en presencia de heterocedasticidad son incluso mejores que los errores robustos.
+
+
+\newpage
+
+# IX.
+
+
+```{r}
+#Estimo el modelo
+
+ej9_m4<-gmm(workedm~kidcount+agem1+agefstm+black+hispan+othrace, ~ samesex+agem1+agefstm+black+hispan+othrace, data)
+cov_ej9_m4 <- vcov(ej9_m4, type = "HC")
+robustm4_9.se <- sqrt(diag(cov_ej9_m4)) #0.02263
+```
+
+\begin{table}[!htbp] \centering 
+  \caption{Más especificaciones} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lccc} 
+\\[-1.8ex]\hline 
+\hline 
+\\[-1.8ex]& (1) & (2) & (3) \\ 
+\\Variable dependiente: & \textit{workedm} & - & -\\ 
+\hline \\[-1.8ex] 
+ \textit{kidcount} & $-$0.099$^{***}$ & -& -\\ 
+  & (0.02263)  & - & -  \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{N} & 254,654  & - & - \\ 
+\textit{F} 1a etapa &  - & - & -\\ 
+\hline \\[-1.8ex] 
+\\Método & GMM & -  & -  \\ 
+Instrumento & \textit{samesex}   & - &-  \\ 
+ &- & - & - \\ 
+ \\Controles & Sí & - & - \\ 
+\hline 
+\hline \\[-1.8ex] 
+\multicolumn{4}{l}{Todas las regresiones controlan por \textit{agem1}, \textit{agef}, \textit{stm}, \textit{black},\textit{hispan},\textit{othrace}}\\ 
+\multicolumn{4}{l}{Errores robustos entre parentesis}\\ 
+\multicolumn{4}{l}{ $^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+De la tabla anterior podemos inferir que el efecto de tener un hijo adicional afecta la probabilidad de haber trabajado para las mamás compliers en 9.9 puntos porcentuales. Las mamás compliers son aqullas que tuvieron un hijo adicional solo si tuvieron los dos primeros hijos del mismo sexo.
+
+# X.
+
+```{r}
+data<-data%>% mutate(work=ifelse(hourswm>0,1,0))
+ej10<-ivreg(incomem~kidcount+hourswm+I(kidcount*hourswm)+agem1+agefstm+black+hispan+othrace|. -kidcount + samesex+work ,data = data)
+
+stargazer(ej10,type="text")
+
+#Para el F de la primera etapa simplemente lo invoco de la información de resumen de cada modelo
+#summary(ej11,diagnostics = T) #F=688.71
+
+# Calculo los errores robustos
+cov_ej10<- vcovHC(ej10, type = "HC")
+robustm_ej10 <- sqrt(diag(cov_ej10)) #581.6  38.6 14.2 y 22.8
+```
+
+\begin{table}[!htbp] \centering 
+  \caption{Más especificaciones} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lccc} 
+\\[-1.8ex]\hline 
+\hline 
+\\[-1.8ex]& (1) & (2) & (3) \\ 
+\\Variable dependiente: & \textit{workedm} & \textit{incomem} & -\\ 
+\hline \\[-1.8ex] 
+ \textit{kidcount} & $-$0.099$^{***}$ & 1,679.921$^{***}$ & -\\ 
+  & (0.02263)  & (581.6) & -  \\ 
+ \textit{hourswm} & - &  584.005$^{***}$ & -\\ 
+   & - & (38.6)  & -  \\ 
+  \textit{kidcount:hourswm} &- & $-$88.538$^{***}$ & -\\ 
+    & - & (14.2)  & -  \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{N} & 254,654  & 254,654 & - \\ 
+\textit{F} 1a etapa & -  &  688.71 & -\\ 
+\hline \\[-1.8ex] 
+\\Método & GMM & IV  & -  \\ 
+Instrumento & \textit{samesex}   & \textit{samesex} &-  \\ 
+ &\textit{multi2nd}  & \textit{work} & - \\ 
+ \\Controles & Sí & Sí & - \\ 
+\hline 
+\hline \\[-1.8ex] 
+\multicolumn{4}{l}{Todas las regresiones controlan por \textit{agem1}, \textit{agef}, \textit{stm}, \textit{black},\textit{hispan},\textit{othrace}}\\ 
+\multicolumn{4}{l}{Errores robustos entre parentesis}\\ 
+\multicolumn{4}{l}{\textit{work} es una dicotomica que indica si la mujer trabajó}\\ 
+\multicolumn{4}{l}{ $^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table}
+
+En este segundo modelo usamos como IV una dicotomica que nos indica si la mujer trabajó o no y *samesex*, por lo tanto, nuestros compliers son mujeres que sí trabajaron y que si tuvieron más hijos si solo si los primeros dos fueron del mismo sexo. Notamos que el coeficiente de *kidcount* y de *hourswm* son positivos y estadísticamente significativos al 99%, lo que indica que por cada hijo y por cada hora de trabajo se va a ganar más dinero (por que se va a trabajar) sin embargo a este monto se le tiene que restar  la interacción entre estas dos variables. El coeficiente de la interacción es negativo y estadisticamente significativo, lo cual es muy interesante y nos indica la existencia de un efecto negativo sobre el salario debido a las horas de trabajo con hijos, todo lo demas constante para las compliers. En resumen si hay un efecto negativo sobre el salario debido a la cantidad de hijos controlando incluso por el tiempo que trabajan las mujeres.
+
+\newpage
+
+# XI.
+
+```{r}
+ej11<-ivreg(weeksm1~kidcount+hispan+I(kidcount*hispan)+agem1+agefstm+black+othrace|. -kidcount +samesex+work,data = data)
+
+stargazer(ej11,type="text")
+
+#Para el F de la primera etapa simplemente lo invoco de la información de resumen de cada modelo
+summary(ej11,diagnostics = T) #F=4012.2
+
+# Calculo los errores robustos
+cov_ej11<- vcovHC(ej11, type = "HC")
+robustm_ej11 <- sqrt(diag(cov_ej11)) #1.5802 3.6575 1.4807
+
+```
+
+\begin{table}[!htbp] \centering 
+  \caption{Más especificaciones} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}}lccc} 
+\\[-1.8ex]\hline 
+\hline 
+\\[-1.8ex]& (1) & (2) & (3) \\ 
+\\Variable dependiente: & \textit{workedm} & \textit{incomem} & \textit{weeksm1}\\ 
+\hline \\[-1.8ex] 
+ \textit{kidcount} & $-$0.099$^{***}$ & 1,679.921$^{***}$ & $-$138.346$^{***}$\\ 
+  & (0.02263)  & (581.6) & (1.5802)  \\ 
+ \textit{hourswm} & - &  584.005$^{***}$ & -\\ 
+   & - & (38.6)  & -  \\ 
+  \textit{kidcount:hourswm} &- & $-$88.538$^{***}$ & -\\ 
+    & - & (14.2)  & -  \\ 
+  \textit{hispan} & - & - &  $-$303.426$^{***}$\\ 
+   & - & -  & (3.6575) \\ 
+  \textit{kidcount:hispan} &- &  &  122.310$^{***}$\\ 
+    & - & -  & (1.4807)  \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{N} & 254,654  & 254,654 &  254,654 \\ 
+\textit{F} 1a etapa & -  &  688.71 & 4012.2\\ 
+\hline \\[-1.8ex] 
+\\Método & GMM & IV  & IV  \\ 
+Instrumento & \textit{samesex}   & \textit{samesex} & \textit{samesex} \\ 
+ &\textit{multi2nd}  & \textit{work} & \textit{work} \\ 
+ \\Controles & Sí & Sí & Sí \\ 
+\hline 
+\hline \\[-1.8ex] 
+\multicolumn{4}{l}{Todas las regresiones controlan por \textit{agem1}, \textit{agef}, \textit{stm}, \textit{black},\textit{hispan},\textit{othrace}}\\ 
+\multicolumn{4}{l}{Errores robustos entre parentesis}\\ 
+\multicolumn{4}{l}{\textit{work} es una dicotómica que indica si la mujer trabajó}\\ 
+\multicolumn{4}{l}{ $^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table}
+
+Finalmente, en este tercer modelo usamos como IV una dicotómica que nos indica si la mujer trabajó o no y *samesex*, por lo tanto, nuestros compliers son mujeres que sí trabajaron y que si tuvieron más hijos si solo si los primeros dos fueron del mismo sexo. Notamos que el coeficiente de *kidcount* y de *hispan* son negativos y estadísticamente significativos al 99%, lo que indica que por cada hijo y por el hecho de ser hispana, la persona va a trabajar más sin embargo a este monto se le tiene que sumar  la interacción entre estas dos variables, la cual tiene el potencial de hacer la cantidad neta incluso positiva. El coeficiente de la interacción es positivo y estadisticamente significativo, lo cual nos indica la existencia de un efecto positivo sobre el la cantidad de horas trabajadas debido a la cantidad de hijos para las mujeres hispanas compliers, todo lo demas constante. En resumen sí hay un efecto posivo en la cantidad de horas trabajadas derivado de los hijos para las mujeres hispanas, aunque al final es incierto si la cantidad de horas disminuye, aumenta o se queda igual dependiendo las demas variables. 
